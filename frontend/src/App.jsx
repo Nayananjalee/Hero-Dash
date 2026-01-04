@@ -16,6 +16,9 @@ import StartScreen from './components/StartScreen'
 import AnalyticsDashboard from './components/AnalyticsDashboard'
 import { useGameStore } from './store'
 
+// API URL from environment variables (supports both dev and production)
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
 function App() {
   const triggerEmergency = useGameStore((state) => state.triggerEmergency)
   const gameStarted = useGameStore((state) => state.gameStarted)
@@ -29,7 +32,7 @@ function App() {
     const interval = setInterval(async () => {
       try {
         // Fetch ML-powered recommendation
-        const response = await fetch(`http://localhost:8000/recommend/${userId}`)
+        const response = await fetch(`${API_URL}/recommend/${userId}`)
         if (!response.ok) throw new Error("Failed to fetch")
         
         const data = await response.json()
@@ -60,7 +63,7 @@ function App() {
   // Start analytics session when game starts
   useEffect(() => {
     if (gameStarted && userId && !useGameStore.getState().sessionId) {
-      fetch(`http://localhost:8000/analytics/start-session/${userId}`, {
+      fetch(`${API_URL}/analytics/start-session/${userId}`, {
         method: 'POST'
       })
       .then(res => res.json())

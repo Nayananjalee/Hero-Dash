@@ -11,6 +11,9 @@
 
 import { create } from 'zustand'
 
+// API URL from environment variables
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+
 export const useGameStore = create((set, get) => ({
   // === Game State ===
   gameStarted: false,
@@ -136,7 +139,7 @@ export const useGameStore = create((set, get) => ({
     
     // Send attempt to backend for ML processing
     if (state.userId) {
-        fetch('http://localhost:8000/attempts/', {
+        fetch(`${API_URL}/attempts/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

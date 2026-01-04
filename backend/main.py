@@ -11,18 +11,26 @@ from sqlalchemy.orm import Session
 from typing import Optional, List
 from datetime import datetime, timedelta
 import random
+import os
+from dotenv import load_dotenv
 import models, schemas, crud, database, ml_algorithms
 import numpy as np
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Initialize database tables on startup
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI()
 
+# Get allowed origins from environment variable or use defaults
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
+
 # Configure CORS to allow frontend connections
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins (configure appropriately for production)
+    allow_origins=ALLOWED_ORIGINS,  # Production-ready CORS configuration
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

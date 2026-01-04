@@ -17,7 +17,13 @@ The game uses **Figure-Ground Discrimination** (identifying sounds amid backgrou
 **Frontend**: React 18, Three.js (@react-three/fiber), Zustand, Framer Motion  
 **Backend**: Python FastAPI, SQLAlchemy, Machine Learning (Thompson Sampling, Spaced Repetition)
 
-## Setup
+## Deployment
+- **Frontend**: Vercel
+- **Backend**: Render
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment instructions.
+
+## Local Development Setup
 
 ### Backend
 ```bash

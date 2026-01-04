@@ -70,6 +70,7 @@ htmlcov/
 .env
 .env.local
 .env.*.local
+.env.production
 
 # Logs
 logs/
