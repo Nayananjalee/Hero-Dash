@@ -1,3 +1,10 @@
+/**
+ * Main App Component
+ * ===================
+ * Manages the 3D game scene, emergency overlays, and backend communication.
+ * Polls backend for ML-powered scenario recommendations every 10 seconds.
+ */
+
 import React, { useEffect, Suspense } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls, Environment, Stars } from '@react-three/drei'
@@ -15,13 +22,13 @@ function App() {
   const userId = useGameStore((state) => state.userId)
   const emergencyActive = useGameStore((state) => state.emergencyActive)
 
-  // Polling for new scenarios
+  // Poll backend for personalized scenario recommendations
   useEffect(() => {
     if (!gameStarted || !userId || emergencyActive) return
 
     const interval = setInterval(async () => {
       try {
-        // Fetch personalized recommendation with ML metrics
+        // Fetch ML-powered recommendation
         const response = await fetch(`http://localhost:8000/recommend/${userId}`)
         if (!response.ok) throw new Error("Failed to fetch")
         
@@ -34,24 +41,23 @@ function App() {
           reason: data.reason
         })
         
-        // Apply difficulty settings from backend
+        // Trigger emergency with backend-provided scenario
         triggerEmergency(data.type, data.action)
         
-        // Auto clear logic is handled by store/user action now, 
-        // but we can have a timeout for "missed" events
+        // Auto-clear after 8 seconds if user doesn't respond
         setTimeout(() => {
             useGameStore.getState().clearEmergency()
-        }, 8000) // Give them 8 seconds
+        }, 8000)
         
       } catch (error) {
         console.error("Backend error or offline", error)
       }
-    }, 10000) // Check every 10 seconds
+    }, 10000) // Poll every 10 seconds
 
     return () => clearInterval(interval)
   }, [gameStarted, userId, emergencyActive, triggerEmergency])
   
-  // Start session when game starts
+  // Start analytics session when game starts
   useEffect(() => {
     if (gameStarted && userId && !useGameStore.getState().sessionId) {
       fetch(`http://localhost:8000/analytics/start-session/${userId}`, {
@@ -67,21 +73,26 @@ function App() {
 
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
+      {/* UI Overlays */}
       {!gameStarted && <StartScreen />}
       <SoundManager />
       <EmergencyOverlay />
       <UI />
       <AnalyticsDashboard />
       
+      {/* 3D Game Scene */}
       <Canvas camera={{ position: [0, 5, 10], fov: 50 }} shadows>
         <fog attach="fog" args={['#101010', 10, 50]} />
         <Suspense fallback={null}>
+          {/* Lighting setup */}
           <ambientLight intensity={0.2} />
           <spotLight position={[10, 20, 10]} angle={0.5} penumbra={1} intensity={1} castShadow />
           <pointLight position={[-10, -10, -10]} intensity={0.5} />
           
+          {/* Main game scene with car and environment */}
           <GameScene />
           
+          {/* Environment effects */}
           <Environment preset="night" />
           <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
         </Suspense>
@@ -91,3 +102,4 @@ function App() {
 }
 
 export default App
+

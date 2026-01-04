@@ -1,3 +1,10 @@
+"""
+Hero-Dash Backend API
+=====================
+FastAPI backend for auditory therapy game.
+Provides ML-powered scenario recommendations, user management, and analytics.
+"""
+
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -7,45 +14,63 @@ import random
 import models, schemas, crud, database, ml_algorithms
 import numpy as np
 
-# Create DB tables
+# Initialize database tables on startup
 models.Base.metadata.create_all(bind=database.engine)
 
 app = FastAPI()
 
-# Allow CORS for frontend
+# Configure CORS to allow frontend connections
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Allow all origins (configure appropriately for production)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Dependency
+# Database session dependency for automatic connection management
 def get_db():
+    """Create and manage database session for each request"""
     db = database.SessionLocal()
     try:
         yield db
     finally:
         db.close()
 
+# ============================================================================
+# BASIC ENDPOINTS - User Management & Game Flow
+# ============================================================================
+
 @app.get("/")
 def read_root():
+    """API health check endpoint"""
     return {"message": "Emergency Response Hero API"}
 
 @app.post("/users/", response_model=schemas.User)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    """
+    Create a new user or return existing user by username.
+    Serves as both registration and simple login.
+    """
     db_user = crud.get_user_by_username(db, username=user.username)
     if db_user:
-        return db_user # Return existing user if found (Simple login)
+        return db_user  # Return existing user if found
     return crud.create_user(db=db, user=user)
 
 @app.post("/attempts/", response_model=schemas.Attempt)
 def record_attempt(attempt: schemas.AttemptCreate, db: Session = Depends(get_db)):
+    """
+    Record a game attempt with ML processing.
+    Updates user stats, Thompson Sampling, and Spaced Repetition models.
+    """
     return crud.create_attempt(db=db, attempt=attempt)
 
 @app.get("/recommend/{user_id}", response_model=schemas.ScenarioRecommendation)
 def get_recommendation(user_id: int, db: Session = Depends(get_db)):
+    """
+    Get personalized scenario recommendation using ML algorithms.
+    Combines Thompson Sampling, Spaced Repetition, and Cognitive Load analysis.
+    """
     recommendation = crud.get_recommendation(db, user_id)
     if not recommendation:
         raise HTTPException(status_code=404, detail="User not found")
@@ -54,8 +79,8 @@ def get_recommendation(user_id: int, db: Session = Depends(get_db)):
 @app.get("/scenario")
 def get_scenario():
     """
-    Returns a random emergency scenario.
-    For a hearing impaired child, the 'type' determines the visual cue.
+    DEPRECATED: Returns a random emergency scenario.
+    Use /recommend/{user_id} for personalized ML-based recommendations.
     """
     scenarios = [
         {"type": "ambulance", "visual_cue": "Flashing Red/White Lights", "action": "Move Right"},
@@ -66,7 +91,6 @@ def get_scenario():
     ]
     return random.choice(scenarios)
 
-
 # ============================================================================
 # ADVANCED ANALYTICS & CLINICAL ENDPOINTS
 # ============================================================================
@@ -74,8 +98,11 @@ def get_scenario():
 @app.get("/analytics/clinical-scores/{user_id}")
 def get_clinical_scores(user_id: int, db: Session = Depends(get_db)):
     """
-    Get standardized clinical assessment scores
-    Aligned with SCAN-C and CHAPPS standards
+    Generate comprehensive clinical assessment scores.
+    Evaluates figure-ground discrimination, temporal processing,
+    sound localization, and attention span based on gameplay data.
+    
+    Requires minimum 20 attempts for statistical validity.
     """
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
@@ -114,7 +141,10 @@ def get_clinical_scores(user_id: int, db: Session = Depends(get_db)):
 
 
 def interpret_clinical_scores(scores: dict) -> dict:
-    """Provide clinical interpretation of scores"""
+    """
+    Provide clinical interpretation of composite scores.
+    Classifies performance and identifies strengths/weaknesses.
+    """
     composite = scores["composite_score"]
     
     if composite >= 80:
@@ -139,7 +169,7 @@ def interpret_clinical_scores(scores: dict) -> dict:
 
 
 def get_strength_areas(scores: dict) -> list:
-    """Identify strong performance areas"""
+    """Identify performance areas where user excels (score >= 70)"""
     strengths = []
     if scores["figure_ground_score"] >= 70:
         strengths.append("Figure-ground discrimination")
@@ -151,7 +181,7 @@ def get_strength_areas(scores: dict) -> list:
 
 
 def get_improvement_areas(scores: dict) -> list:
-    """Identify areas needing work"""
+    """Identify areas needing targeted practice (score < 60)"""
     improvements = []
     if scores["figure_ground_score"] < 60:
         improvements.append("Noise filtering ability")
@@ -167,7 +197,13 @@ def get_improvement_areas(scores: dict) -> list:
 @app.get("/analytics/progress-report/{user_id}")
 def generate_progress_report(user_id: int, days: Optional[int] = 30, db: Session = Depends(get_db)):
     """
-    Comprehensive progress report for therapists/parents
+    Generate comprehensive progress report for specified time period.
+    Includes success rates, reaction times, improvement trends,
+    per-scenario breakdowns, and clinical recommendations.
+    
+    Args:
+        user_id: User identifier
+        days: Number of days to include in report (default: 30)
     """
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
