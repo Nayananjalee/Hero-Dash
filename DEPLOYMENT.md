@@ -32,8 +32,9 @@ git push origin main
    
 5. Add Environment Variables:
    - Click **Advanced** → **Add Environment Variable**
-   - Add: `ALLOWED_ORIGINS` = `https://your-frontend-name.vercel.app`
-   - (You'll update this after deploying frontend)
+   - Add: `DATABASE_URL` = `sqlite:///./hero_dash.db`
+   - Add: `ALLOWED_ORIGINS` = `https://your-frontend-name.vercel.app,http://localhost:5173`
+   - (You'll update the ALLOWED_ORIGINS after deploying frontend)
 
 6. Click **Create Web Service**
 
