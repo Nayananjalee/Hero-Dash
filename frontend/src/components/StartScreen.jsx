@@ -15,17 +15,18 @@ function DashboardView({ onBack }) {
     
     setLoading(true)
     try {
-      const progressRes = await fetch(`http://localhost:8000/analytics/progress-report/${userId}?days=7`)
+      const API_URL = import.meta.env.VITE_API_URL || 'https://hero-dash.onrender.com'
+      const progressRes = await fetch(`${API_URL}/analytics/progress-report/${userId}?days=7`)
       const progressData = await progressRes.json()
       if (!progressData.error) {
         setProgressReport(progressData)
       }
 
-      const curveRes = await fetch(`http://localhost:8000/analytics/learning-curve/${userId}`)
+      const curveRes = await fetch(`${API_URL}/analytics/learning-curve/${userId}`)
       const curveData = await curveRes.json()
       setLearningCurve(curveData.data_points || [])
 
-      const cognitiveRes = await fetch(`http://localhost:8000/analytics/cognitive-load/${userId}`)
+      const cognitiveRes = await fetch(`${API_URL}/analytics/cognitive-load/${userId}`)
       const cognitiveData = await cognitiveRes.json()
       setCognitiveStatus(cognitiveData)
       
@@ -208,7 +209,7 @@ export default function StartScreen() {
 
     setLoading(true)
     try {
-      const response = await fetch('http://localhost:8000/users/', {
+      const response = await fetch(`${API_URL}/users/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: name })

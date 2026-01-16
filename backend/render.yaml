@@ -11,5 +11,5 @@ services:
       - key: DATABASE_URL
         value: sqlite:///./hero_dash.db
       - key: ALLOWED_ORIGINS
-        value: http://localhost:5173
+        value: https://hero-dash.vercel.app,http://localhost:5173
     healthCheckPath: /

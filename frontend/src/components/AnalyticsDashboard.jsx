@@ -14,19 +14,20 @@ export default function AnalyticsDashboard() {
     setLoading(true)
     try {
       // Fetch progress report
-      const progressRes = await fetch(`http://localhost:8000/analytics/progress-report/${userId}?days=7`)
+      const API_URL = import.meta.env.VITE_API_URL || 'https://hero-dash.onrender.com'
+      const progressRes = await fetch(`${API_URL}/analytics/progress-report/${userId}?days=7`)
       const progressData = await progressRes.json()
       if (!progressData.error) {
         setProgressReport(progressData)
       }
 
       // Fetch learning curve
-      const curveRes = await fetch(`http://localhost:8000/analytics/learning-curve/${userId}`)
+      const curveRes = await fetch(`${API_URL}/analytics/learning-curve/${userId}`)
       const curveData = await curveRes.json()
       setLearningCurve(curveData.data_points || [])
 
       // Fetch cognitive load
-      const cognitiveRes = await fetch(`http://localhost:8000/analytics/cognitive-load/${userId}`)
+      const cognitiveRes = await fetch(`${API_URL}/analytics/cognitive-load/${userId}`)
       const cognitiveData = await cognitiveRes.json()
       setCognitiveStatus(cognitiveData)
       
