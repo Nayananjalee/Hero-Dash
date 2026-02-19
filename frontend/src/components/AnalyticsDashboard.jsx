@@ -14,7 +14,7 @@ export default function AnalyticsDashboard() {
     setLoading(true)
     try {
       // Fetch progress report
-      const API_URL = import.meta.env.VITE_API_URL || 'https://hero-dash.onrender.com'
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
       const progressRes = await fetch(`${API_URL}/analytics/progress-report/${userId}?days=7`)
       const progressData = await progressRes.json()
       if (!progressData.error) {
@@ -352,11 +352,11 @@ function ScenarioBar({ scenario, stats }) {
   }
 
   const icons = {
-    ambulance: '🚑',
-    police: '🚓',
-    firetruck: '🚒',
-    train: '🚂',
-    ice_cream: '🍦'
+    tsunami_siren: '🌊',
+    earthquake_alarm: '🏚️',
+    flood_warning: '🌊',
+    air_raid_siren: '🚨',
+    building_fire_alarm: '🔥'
   }
 
   return (
