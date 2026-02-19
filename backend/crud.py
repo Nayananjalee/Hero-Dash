@@ -11,6 +11,8 @@ import models, schemas
 import random
 from datetime import datetime, timedelta
 import ml_algorithms
+import bayesian_knowledge_tracing as bkt
+import irt_model as irt
 
 # ============================================================================
 # USER MANAGEMENT
@@ -21,11 +23,19 @@ def get_user_by_username(db: Session, username: str):
     return db.query(models.User).filter(models.User.username == username).first()
 
 def create_user(db: Session, user: schemas.UserCreate):
-    """Create new user with default starting values"""
-    db_user = models.User(username=user.username)
+    """Create new user with default starting values and initialize ML profiles"""
+    db_user = models.User(
+        username=user.username,
+        age_group=user.age_group if hasattr(user, 'age_group') and user.age_group else "7-8",
+        hearing_level=user.hearing_level if hasattr(user, 'hearing_level') and user.hearing_level else "moderate"
+    )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+    
+    # Initialize BKT skill states for new user
+    bkt.initialize_bkt_states(db, db_user.id)
+    
     return db_user
 
 # ============================================================================
@@ -50,9 +60,9 @@ def create_attempt(db: Session, attempt: schemas.AttemptCreate):
         success=attempt.success,
         reaction_time=attempt.reaction_time,
         difficulty_level=attempt.difficulty_level,
-        # Auto-calculate noise/speed based on difficulty level
-        noise_level=min(0.8, 0.2 + (attempt.difficulty_level - 1) * 0.06),
-        speed_modifier=1.0 + (attempt.difficulty_level - 1) * 0.1
+        noise_level=attempt.noise_level if hasattr(attempt, 'noise_level') and attempt.noise_level else min(0.8, 0.2 + (attempt.difficulty_level - 1) * 0.06),
+        speed_modifier=attempt.speed_modifier if hasattr(attempt, 'speed_modifier') and attempt.speed_modifier else 1.0 + (attempt.difficulty_level - 1) * 0.1,
+        game_mode=attempt.game_mode if hasattr(attempt, 'game_mode') and attempt.game_mode else "audio-visual"
     )
     db.add(db_attempt)
     
@@ -104,7 +114,10 @@ def create_attempt(db: Session, attempt: schemas.AttemptCreate):
         quality, attempt.reaction_time
     )
     
-    # 5. Update learning profile with running averages
+    # 5. Update Bayesian Knowledge Tracing for all relevant skills
+    bkt.update_bkt(db, attempt.user_id, attempt.scenario_type, attempt.success)
+    
+    # 6. Update learning profile with running averages
     profile = db.query(models.UserLearningProfile).filter(
         models.UserLearningProfile.user_id == attempt.user_id
     ).first()
@@ -138,9 +151,16 @@ def get_recommendation(db: Session, user_id: int):
     
     Algorithm Hierarchy:
     1. Spaced Repetition (Priority 1): Reviews due for memory retention
-    2. Thompson Sampling (Priority 2): Optimal learning opportunities
-    3. Weakness Targeting (Priority 3): Focus on failure-prone scenarios
-    4. Balanced Rotation (Fallback): Even distribution when no priority detected
+    2. BKT Skill Targeting (Priority 2): Focus on weakest auditory skill
+    3. IRT Optimal Challenge (Priority 3): Item matched to ability level
+    4. Thompson Sampling (Priority 4): Exploration-exploitation balance
+    5. Weakness Targeting (Priority 5): Focus on failure-prone scenarios
+    6. Balanced Rotation (Fallback): Even distribution
+    
+    VARIETY ENFORCEMENT:
+    - Never repeat the same scenario type more than twice in a row
+    - Ensure all 5 types are seen within every 8 consecutive trials
+    - Slight randomization within priority tiers to avoid predictability
     
     Adjustments:
     - Cognitive Load: Reduces difficulty when user is overloaded
@@ -150,6 +170,38 @@ def get_recommendation(db: Session, user_id: int):
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         return None
+
+    ALL_TYPES = ["tsunami_siren", "earthquake_alarm", "flood_warning", "air_raid_siren", "building_fire_alarm"]
+
+    # === VARIETY CHECK: Get last N scenario types to prevent repetition ===
+    recent_types = [
+        a.scenario_type for a in db.query(models.Attempt.scenario_type).filter(
+            models.Attempt.user_id == user_id
+        ).order_by(models.Attempt.timestamp.desc()).limit(8).all()
+    ]
+    
+    # The last 2 scenarios played
+    last_two = recent_types[:2] if len(recent_types) >= 2 else recent_types[:1] if recent_types else []
+    
+    # Types NOT seen in last 8 attempts — these are "starved" and need attention
+    recent_set = set(recent_types[:8]) if recent_types else set()
+    starved_types = [t for t in ALL_TYPES if t not in recent_set]
+
+    def pick_varied(candidates):
+        """From a list of candidate types, prefer ones not recently played."""
+        if not candidates:
+            return None
+        # Filter out types that appeared in last 2 consecutive (avoid 3+ repeats)
+        if len(last_two) >= 2 and last_two[0] == last_two[1]:
+            varied = [c for c in candidates if c != last_two[0]]
+            if varied:
+                return random.choice(varied)
+        # Filter out the immediate last type when possible
+        if last_two:
+            varied = [c for c in candidates if c != last_two[0]]
+            if varied:
+                return random.choice(varied)
+        return random.choice(candidates)
 
     # 1. Check Spaced Repetition for due reviews
     due_scenarios = ml_algorithms.get_due_for_review(db, user_id)
@@ -162,58 +214,73 @@ def get_recommendation(db: Session, user_id: int):
     # 3. Analyze cognitive load and flow state
     flow_analysis = ml_algorithms.detect_flow_state(db, user_id)
     
-    # 4. Select scenario using priority hierarchy
-    selected_type = None
-    reason = ""
+    # 4. Check BKT for skill-based targeting
+    bkt_scenario = bkt.get_skill_based_scenario(db, user_id)
     
-    # Priority 1: Spaced repetition review (if not cognitively overloaded)
-    if due_scenarios and flow_analysis["cognitive_load"] < 0.7:
-        selected_type = due_scenarios[0]
-        reason = "Memory retention review (Spaced Repetition)"
+    # 5. Get IRT-based optimal item selection
+    irt_ability = irt.estimate_ability_from_db(db, user_id)
+    irt_item = irt.select_optimal_item(irt_ability.get("theta", 0.0))
     
-    # Priority 2: Thompson Sampling (high learning potential)
+    # === FORCE STARVED TYPES periodically (every ~5 attempts, rotate in unseen types) ===
+    if starved_types and len(recent_types) >= 5 and random.random() < 0.5:
+        selected_type = random.choice(starved_types)
+        reason = f"Introducing variety — {selected_type} not practiced recently"
+    
+    # === Priority 1: Spaced repetition review (if not cognitively overloaded) ===
+    elif due_scenarios and flow_analysis["cognitive_load"] < 0.7:
+        selected_type = pick_varied(due_scenarios)
+        reason = "Memory retention review (Spaced Repetition SM-2)"
+    
+    # === Priority 2: BKT skill targeting ===
+    elif bkt_scenario and flow_analysis["cognitive_load"] < 0.6:
+        selected_type = pick_varied([bkt_scenario])
+        if selected_type != bkt_scenario:
+            reason = f"Skill training (BKT) — varied from {bkt_scenario}"
+        else:
+            weakest_skill, p = bkt.get_weakest_skill(db, user_id)
+            reason = f"Targeting weakest skill: {weakest_skill} (BKT P(L)={p:.2f})"
+    
+    # === Priority 3: IRT-based optimal challenge ===
+    elif irt_item and irt_ability.get("num_responses", 0) >= 10:
+        selected_type = pick_varied([irt_item["scenario_type"]])
+        reason = f"Optimal challenge (IRT θ={irt_ability['theta']:.2f}, P(correct)={irt_item['expected_p_correct']:.1%})"
+    
+    # === Priority 4: Thompson Sampling ===
     elif learning_potential > 0.3:
-        selected_type = ts_scenario
-        reason = f"Optimal learning opportunity detected (Thompson Sampling)"
+        selected_type = pick_varied([ts_scenario])
+        reason = f"Exploration-exploitation balance (Thompson Sampling)"
     
-    # Priority 3: Target weakest area
+    # === Priority 5: Target weakest area ===
     else:
-        # Analyze recent performance by scenario type
         recent_attempts = db.query(models.Attempt).filter(
             models.Attempt.user_id == user_id
         ).order_by(models.Attempt.timestamp.desc()).limit(20).all()
         
-        stats = {}
-        all_types = ["ambulance", "police", "firetruck", "train", "ice_cream"]
-        
-        for t in all_types:
-            stats[t] = {"attempts": 0, "failures": 0}
-
+        stats = {t: {"attempts": 0, "failures": 0} for t in ALL_TYPES}
         for att in recent_attempts:
             if att.scenario_type in stats:
                 stats[att.scenario_type]["attempts"] += 1
                 if not att.success:
                     stats[att.scenario_type]["failures"] += 1
         
-        # Find scenario with highest failure rate
-        weakest_link = None
-        highest_fail_rate = -1
-        
+        # Find weakest scenarios (>30% failure rate)
+        weak_scenarios = []
         for t, data in stats.items():
-            if data["attempts"] > 0:
-                fail_rate = data["failures"] / data["attempts"]
-                if fail_rate > highest_fail_rate:
-                    highest_fail_rate = fail_rate
-                    weakest_link = t
+            if data["attempts"] > 0 and data["failures"] / data["attempts"] > 0.3:
+                weak_scenarios.append(t)
         
-        if weakest_link and highest_fail_rate > 0.3:
-            selected_type = weakest_link
-            reason = f"Targeted practice for weakness ({int(highest_fail_rate*100)}% failure rate)"
+        if weak_scenarios:
+            selected_type = pick_varied(weak_scenarios)
+            reason = "Targeted practice for weak areas"
         else:
-            selected_type = random.choice(all_types)
+            # Balanced rotation — prefer least-recently-played types
+            if starved_types:
+                selected_type = random.choice(starved_types)
+            else:
+                selected_type = pick_varied(ALL_TYPES)
             reason = "Balanced rotation"
 
-    # 5. Adjust difficulty based on flow state and cognitive load
+    # === Adjust difficulty based on flow state and cognitive load ===
     speed_mod = 1.0
     
     if flow_analysis["recommendation"] == "decrease_difficulty":
@@ -239,18 +306,18 @@ def get_recommendation(db: Session, user_id: int):
         speed_mod *= 1.1
         reason += " | Streak bonus"
 
-    # 6. Build complete recommendation response
+    # === Build complete recommendation response ===
     scenario_map = {
-        "ambulance": {"action": "Move Right", "visual_cue": "Flashing Red/White Lights"},
-        "police": {"action": "Stay Center", "visual_cue": "Flashing Blue/Red Lights"},
-        "firetruck": {"action": "Move Left", "visual_cue": "Flashing Red Lights"},
-        "train": {"action": "Stop", "visual_cue": "Railway Crossing"},
-        "ice_cream": {"action": "Slow Down", "visual_cue": "Ice Cream Truck"},
+        "tsunami_siren": {"action": "Move Right", "visual_cue": "Tsunami Warning Lights"},
+        "earthquake_alarm": {"action": "Stop", "visual_cue": "Seismic Warning Lights"},
+        "flood_warning": {"action": "Find Safe Place", "visual_cue": "Flood Warning Lights"},
+        "air_raid_siren": {"action": "Stay Center", "visual_cue": "Civil Defense Lights"},
+        "building_fire_alarm": {"action": "Move Left", "visual_cue": "Building Fire Alarm Lights"},
     }
     
-    details = scenario_map.get(selected_type, scenario_map["ambulance"])
+    details = scenario_map.get(selected_type, scenario_map["tsunami_siren"])
     
-    # Calculate adaptive noise level (reduces if user is cognitively overloaded)
+    # Calculate adaptive noise level
     base_noise = min(0.8, 0.2 + (user.current_level - 1) * 0.06)
     adjusted_noise = base_noise * (1 - flow_analysis["cognitive_load"] * 0.3)
     
