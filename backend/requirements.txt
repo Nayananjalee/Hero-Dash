@@ -4,3 +4,4 @@ sqlalchemy
 numpy
 scipy
 python-dotenv
+psycopg2-binary
