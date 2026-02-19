@@ -10,6 +10,10 @@ class User(Base):
     username = Column(String(50), unique=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
+    # Demographics for age-normalized scoring
+    age_group = Column(String(20), default="7-8")  # 5-6, 7-8, 9-10, 11-12, 13-14
+    hearing_level = Column(String(20), default="moderate")  # mild, moderate, severe, profound
+    
     # Stats
     current_level = Column(Integer, default=1)
     total_score = Column(Integer, default=0)
@@ -19,6 +23,8 @@ class User(Base):
     skill_memories = relationship("SkillMemoryState", back_populates="user")
     session_metrics = relationship("SessionMetrics", back_populates="user")
     clinical_assessments = relationship("ClinicalAssessment", back_populates="user")
+    audiogram = relationship("AudiogramData", back_populates="user", uselist=False)
+    bkt_states = relationship("BKTSkillState", back_populates="user")
 
 class Attempt(Base):
     __tablename__ = "attempts"
@@ -26,7 +32,7 @@ class Attempt(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     
-    scenario_type = Column(String(50)) # ambulance, police, etc.
+    scenario_type = Column(String(50)) # tsunami_siren, earthquake_alarm, etc.
     success = Column(Boolean)
     reaction_time = Column(Float) # seconds
     timestamp = Column(DateTime, default=datetime.utcnow)
@@ -35,6 +41,7 @@ class Attempt(Base):
     difficulty_level = Column(Integer)
     noise_level = Column(Float)
     speed_modifier = Column(Float)
+    game_mode = Column(String(20), default="audio-visual")  # audio-visual, visual-only, assessment
 
     user = relationship("User", back_populates="attempts")
 
@@ -68,7 +75,7 @@ class UserLearningProfile(Base):
     
     # Multi-Armed Bandit State (Thompson Sampling parameters as JSON)
     # Stores alpha/beta for each scenario type
-    bandit_params = Column(Text, default='{"ambulance":{"alpha":1,"beta":1},"police":{"alpha":1,"beta":1},"firetruck":{"alpha":1,"beta":1},"train":{"alpha":1,"beta":1},"ice_cream":{"alpha":1,"beta":1}}')
+    bandit_params = Column(Text, default='{"tsunami_siren":{"alpha":1,"beta":1},"earthquake_alarm":{"alpha":1,"beta":1},"flood_warning":{"alpha":1,"beta":1},"air_raid_siren":{"alpha":1,"beta":1},"building_fire_alarm":{"alpha":1,"beta":1}}')
     
     user = relationship("User", back_populates="learning_profile")
 
@@ -154,3 +161,125 @@ class ClinicalAssessment(Base):
     clinical_recommendations = Column(Text, default="[]")  # JSON array
     
     user = relationship("User", back_populates="clinical_assessments")
+
+
+class AudiogramData(Base):
+    """
+    Individual audiometric profile for frequency-specific training.
+    Based on pure-tone audiometry thresholds (dB HL) at standard frequencies.
+    Enables personalized sound processing using NAL-NL2 prescription targets.
+    """
+    __tablename__ = "audiogram_data"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True)
+    
+    # Pure-tone thresholds at standard audiometric frequencies (dB HL)
+    threshold_250hz = Column(Float, default=30.0)
+    threshold_500hz = Column(Float, default=35.0)
+    threshold_1000hz = Column(Float, default=40.0)
+    threshold_2000hz = Column(Float, default=45.0)
+    threshold_4000hz = Column(Float, default=55.0)
+    threshold_8000hz = Column(Float, default=60.0)
+    
+    # Hearing aid configuration
+    hearing_aid_type = Column(String(30), default="none")  # none, bte, ite, cochlear_implant
+    
+    # Best ear PTA (Pure Tone Average: 500, 1000, 2000 Hz)
+    pta_best_ear = Column(Float, default=40.0)
+    
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship("User", back_populates="audiogram")
+
+
+class BKTSkillState(Base):
+    """
+    Bayesian Knowledge Tracing (BKT) state for each auditory skill.
+    Based on Corbett & Anderson (1994) Hidden Markov Model.
+    
+    Tracks probability of skill mastery using:
+    - P(L0): Prior probability of knowing the skill
+    - P(T): Probability of learning transition per attempt
+    - P(G): Probability of guessing correctly without mastery
+    - P(S): Probability of slipping (error despite mastery)
+    """
+    __tablename__ = "bkt_skill_states"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    
+    skill_name = Column(String(50))  # frequency_discrimination, temporal_pattern, figure_ground, etc.
+    
+    # BKT parameters
+    p_learned = Column(Float, default=0.1)    # Current P(learned)
+    p_transit = Column(Float, default=0.15)   # P(transition to learned)
+    p_guess = Column(Float, default=0.2)      # P(correct | not learned)
+    p_slip = Column(Float, default=0.1)       # P(incorrect | learned)
+    
+    # Tracking
+    total_attempts = Column(Integer, default=0)
+    mastery_achieved = Column(Boolean, default=False)  # P(learned) > 0.95
+    last_updated = Column(DateTime, default=datetime.utcnow)
+    
+    user = relationship("User", back_populates="bkt_states")
+
+
+class AssessmentSession(Base):
+    """
+    Pre/Post assessment sessions for clinical validation.
+    Follows standardized assessment protocol:
+    - 20 trials (4 per scenario type)
+    - Fixed difficulty (level 1, noise 0.2)
+    - Used for measuring treatment effect
+    """
+    __tablename__ = "assessment_sessions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    
+    assessment_type = Column(String(20))  # baseline, post_test, follow_up
+    started_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+    
+    # Fixed assessment parameters
+    noise_level = Column(Float, default=0.2)
+    num_trials = Column(Integer, default=20)
+    trials_completed = Column(Integer, default=0)
+    
+    # Results
+    overall_accuracy = Column(Float, default=0.0)
+    avg_reaction_time = Column(Float, default=0.0)
+    
+    # Per-scenario results (JSON)
+    scenario_results = Column(Text, default="{}")
+    
+    # Comparison metrics (only for post_test)
+    improvement_vs_baseline = Column(Float, nullable=True)
+    effect_size_cohens_d = Column(Float, nullable=True)
+    statistical_significance = Column(Boolean, nullable=True)
+    p_value = Column(Float, nullable=True)
+
+
+class IRTItemParameters(Base):
+    """
+    Item Response Theory (IRT) 2PL model parameters.
+    Each scenario_type x noise_level combination is an 'item'.
+    Based on Embretson & Reise (2000) and van der Linden (2024).
+    
+    P(correct | theta, a, b) = 1 / (1 + exp(-a * (theta - b)))
+    """
+    __tablename__ = "irt_item_parameters"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    scenario_type = Column(String(50))
+    noise_level_bin = Column(String(20))  # low (0-0.3), medium (0.3-0.6), high (0.6-1.0)
+    
+    # 2PL parameters
+    discrimination = Column(Float, default=1.0)  # 'a' parameter
+    difficulty = Column(Float, default=0.0)       # 'b' parameter
+    
+    # Calibration data
+    num_responses = Column(Integer, default=0)
+    last_calibrated = Column(DateTime, default=datetime.utcnow)
