@@ -2,23 +2,24 @@ import React, { useState } from 'react'
 import { useGameStore } from '../store'
 
 export default function UI() {
-  const { score, level, feedback, gameStarted, setGameStarted } = useGameStore()
-  const [isPaused, setIsPaused] = useState(false)
+  const { score, level, feedback, gameStarted, isPaused } = useGameStore()
+  const stopGame = useGameStore((state) => state.stopGame)
+  const setPaused = useGameStore((state) => state.setPaused)
   const [showExitConfirm, setShowExitConfirm] = useState(false)
 
   const handlePause = () => {
-    setIsPaused(!isPaused)
+    setPaused(!isPaused)
   }
 
   const handleExit = () => {
+    // Pause the game when showing exit dialog
+    setPaused(true)
     setShowExitConfirm(true)
   }
 
   const confirmExit = () => {
-    setGameStarted(false)
+    stopGame()
     setShowExitConfirm(false)
-    setIsPaused(false)
-    window.location.reload()
   }
 
   if (!gameStarted) return null
@@ -32,7 +33,8 @@ export default function UI() {
         right: 20,
         zIndex: 100,
         display: 'flex',
-        gap: '10px'
+        gap: '10px',
+        pointerEvents: 'auto'
       }}>
         <button
           onClick={handlePause}
@@ -151,7 +153,8 @@ export default function UI() {
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          zIndex: 9999
+          zIndex: 9999,
+          pointerEvents: 'auto'
         }}>
           <div style={{
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -200,7 +203,8 @@ export default function UI() {
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          zIndex: 10000
+          zIndex: 10000,
+          pointerEvents: 'auto'
         }}>
           <div style={{
             background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
@@ -242,7 +246,10 @@ export default function UI() {
                 Yes, Exit
               </button>
               <button
-                onClick={() => setShowExitConfirm(false)}
+                onClick={() => {
+                  setShowExitConfirm(false)
+                  setPaused(false) // Resume game when continuing
+                }}
                 style={{
                   padding: '15px 40px',
                   background: '#2ecc71',
