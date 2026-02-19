@@ -4,6 +4,15 @@ import { useGameStore } from '../store'
 import * as THREE from 'three'
 import { RoundedBox } from '@react-three/drei'
 
+// Age-based speed multiplier (younger children get slower speeds)
+const AGE_SPEED_MULTIPLIER = {
+  '5-6': 0.6,    // Slowest — developing motor skills
+  '7-8': 0.75,
+  '9-10': 0.85,
+  '11-12': 0.95,
+  '13-14': 1.0   // Full speed
+}
+
 // --- ASSETS & COMPONENTS ---
 
 function Tree({ position }) {
@@ -28,8 +37,12 @@ function Human({ position, speed = 1, color }) {
   const body = useRef()
   const leftLeg = useRef()
   const rightLeg = useRef()
+  const isPaused = useGameStore((state) => state.isPaused)
   
   useFrame((state) => {
+    // Don't animate when paused
+    if (isPaused) return
+    
     const t = state.clock.getElapsedTime() * speed * 5
     // Walking animation
     leftLeg.current.rotation.x = Math.sin(t) * 0.5
@@ -175,10 +188,16 @@ function InfiniteCity() {
   const [blocks, setBlocks] = useState([0, 1, 2, 3, 4])
   const level = useGameStore((state) => state.level)
   const speedModifier = useGameStore((state) => state.speedModifier)
+  const ageGroup = useGameStore((state) => state.ageGroup)
+  const isPaused = useGameStore((state) => state.isPaused)
+  const ageMult = AGE_SPEED_MULTIPLIER[ageGroup] || 0.85
   
   useFrame((state, delta) => {
-    // Slower base speed, increases gently with level
-    const speed = (10 + (level - 1) * 2) * speedModifier
+    // Don't animate when paused
+    if (isPaused) return
+    
+    // Slower base speed, increases gently with level, scaled by age
+    const speed = (10 + (level - 1) * 2) * speedModifier * ageMult
     group.current.position.z += delta * speed 
     
     // Reset position to loop seamlessly
@@ -201,6 +220,7 @@ function Car() {
   const lane = useGameStore((state) => state.lane)
   const setLane = useGameStore((state) => state.setLane)
   const setSpeed = useGameStore((state) => state.setSpeed)
+  const isPaused = useGameStore((state) => state.isPaused)
   
   // Smooth movement
   useFrame((state, delta) => {
@@ -222,17 +242,20 @@ function Car() {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // Don't process keyboard input when paused
+      if (isPaused) return
+      
       if (e.key === 'ArrowLeft' || e.key === 'a') setLane(Math.max(-1, lane - 1))
       if (e.key === 'ArrowRight' || e.key === 'd') setLane(Math.min(1, lane + 1))
       
       // Speed Controls
       if (e.key === 'ArrowUp' || e.key === 'w') setSpeed(1) // Resume / Go
-      if (e.key === 'ArrowDown') setSpeed(0) // Stop (Train)
-      if (e.key === 's' || e.key === ' ') setSpeed(0.5) // Slow Down (Ice Cream)
+      if (e.key === 'ArrowDown') setSpeed(0) // Stop (Earthquake - Drop, Cover, Hold On)
+      if (e.key === 's' || e.key === ' ') setSpeed(0.5) // Find Safe Place (Flood Warning)
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [lane, setLane, setSpeed])
+  }, [lane, setLane, setSpeed, isPaused])
 
   return (
     <group ref={mesh} position={[0, 0, 0]}>
@@ -283,9 +306,15 @@ function Wheel({ position }) {
   const wheelRef = useRef()
   const level = useGameStore((state) => state.level)
   const speedModifier = useGameStore((state) => state.speedModifier)
+  const ageGroup = useGameStore((state) => state.ageGroup)
+  const isPaused = useGameStore((state) => state.isPaused)
+  const ageMult = AGE_SPEED_MULTIPLIER[ageGroup] || 0.85
 
   useFrame((state, delta) => {
-    const speed = (10 + (level - 1) * 2) * speedModifier
+    // Don't animate when paused
+    if (isPaused) return
+    
+    const speed = (10 + (level - 1) * 2) * speedModifier * ageMult
     wheelRef.current.rotation.x -= delta * speed * 0.5 // Spin wheels based on speed
   })
   return (
@@ -306,11 +335,16 @@ function Road() {
   const roadRef = useRef()
   const level = useGameStore((state) => state.level)
   const speedModifier = useGameStore((state) => state.speedModifier)
+  const ageGroup = useGameStore((state) => state.ageGroup)
+  const isPaused = useGameStore((state) => state.isPaused)
+  const ageMult = AGE_SPEED_MULTIPLIER[ageGroup] || 0.85
   
   useFrame((state, delta) => {
-    // Speed increases with level
-    // Base speed 10 + (level * 2) - Matches City Speed
-    const speed = (10 + (level - 1) * 2) * speedModifier
+    // Don't animate when paused
+    if (isPaused) return
+    
+    // Speed increases with level, scaled by age group
+    const speed = (10 + (level - 1) * 2) * speedModifier * ageMult
     roadRef.current.position.z += delta * speed
     if (roadRef.current.position.z > 20) {
       roadRef.current.position.z = 0
