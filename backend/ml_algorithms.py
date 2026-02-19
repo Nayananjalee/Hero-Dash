@@ -38,11 +38,11 @@ def thompson_sampling_scenario_selection(db: Session, user_id: int) -> Tuple[str
         profile = models.UserLearningProfile(
             user_id=user_id,
             bandit_params=json.dumps({
-                "ambulance": {"alpha": 1, "beta": 1},
-                "police": {"alpha": 1, "beta": 1},
-                "firetruck": {"alpha": 1, "beta": 1},
-                "train": {"alpha": 1, "beta": 1},
-                "ice_cream": {"alpha": 1, "beta": 1}
+                "tsunami_siren": {"alpha": 1, "beta": 1},
+                "earthquake_alarm": {"alpha": 1, "beta": 1},
+                "flood_warning": {"alpha": 1, "beta": 1},
+                "air_raid_siren": {"alpha": 1, "beta": 1},
+                "building_fire_alarm": {"alpha": 1, "beta": 1}
             })
         )
         db.add(profile)
@@ -319,7 +319,7 @@ def calculate_cognitive_load(db: Session, user_id: int, window_minutes: int = 10
         0.20 * error_clustering          # Frustration
     )
     
-    return min(1.0, max(0.0, cognitive_load))
+    return float(min(1.0, max(0.0, cognitive_load)))
 
 
 def detect_flow_state(db: Session, user_id: int, current_session_id: Optional[int] = None) -> Dict:
@@ -402,9 +402,9 @@ def detect_flow_state(db: Session, user_id: int, current_session_id: Optional[in
         reason = "Optimal challenge-skill balance detected"
     
     return {
-        "in_flow": in_flow,
-        "success_rate": success_rate,
-        "consistency_score": 1 / (1 + rt_cv) if rt_cv != 999 else 0.5,
+        "in_flow": bool(in_flow),
+        "success_rate": float(success_rate),
+        "consistency_score": float(1 / (1 + rt_cv) if rt_cv != 999 else 0.5),
         "recommendation": recommendation,
         "reason": reason,
         "cognitive_load": calculate_cognitive_load(db, user_id)
