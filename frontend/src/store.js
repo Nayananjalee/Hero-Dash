@@ -17,6 +17,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 export const useGameStore = create((set, get) => ({
   // === Game State ===
   gameStarted: false,
+  isPaused: false,
   score: 0,
   level: 1,
   
@@ -26,26 +27,46 @@ export const useGameStore = create((set, get) => ({
   
   // === Emergency State ===
   emergencyActive: false,
-  emergencyType: null,  // 'ambulance', 'police', 'firetruck', 'train', 'ice_cream'
+  emergencyType: null,  // 'tsunami_siren', 'earthquake_alarm', 'flood_warning', 'air_raid_siren', 'building_fire_alarm'
   emergencyAction: null, 
   targetLane: null,     // Required lane position for current emergency
   targetSpeed: null,    // Required speed for current emergency
   feedback: null,       // User feedback: 'Correct! 🎉' or 'Try Again ❌'
+  emergencyStartTime: null, // High-precision timestamp for RT measurement
+  responseLocked: false,     // Lock after first key press per emergency
   
   // === User Data ===
   userId: null,
   username: null,
   sessionId: null,
+  ageGroup: '7-8',       // Age group for normalized scoring
+  hearingProfile: null,  // Audiogram data if provided
+  
+  // === Game Mode ===
+  gameMode: 'audio-visual', // 'audio-visual', 'visual-only', 'assessment'
+  assessmentPhase: null,    // 'baseline', 'post-test', null
+  assessmentTrials: [],     // Pre/post assessment trial data
   
   // === ML Metrics (from backend) ===
-  cognitiveLoad: 0.0,
-  inFlowState: false,
-  mlReason: '',
+  mlMetrics: {
+    cognitive_load: 0.0,
+    in_flow_state: false,
+    reason: '',
+    noise_level: 0.2,
+    speed_modifier: 1.0
+  },
   
   // === Analytics Data ===
   clinicalScores: null,
   progressData: null,
   learningCurve: [],
+  bktSkillLevels: {},  // Bayesian Knowledge Tracing levels
+  
+  // === View State (new components) ===
+  showTherapistDashboard: false,
+  showAssessmentMode: false,
+  assessmentTypeToRun: 'baseline', // 'baseline', 'post_test', 'follow_up'
+  showAchievements: false,
   
   // === Actions ===
   
@@ -53,6 +74,41 @@ export const useGameStore = create((set, get) => ({
    * Set user ID and username for tracking
    */
   setUserId: (id, name) => set({ userId: id, username: name }),
+  
+  /**
+   * Set age group for normalized scoring
+   */
+  setAgeGroup: (ageGroup) => set({ ageGroup }),
+  
+  /**
+   * Set game mode: audio-visual, visual-only, assessment
+   */
+  setGameMode: (mode) => set({ gameMode: mode }),
+  
+  /**
+   * Set hearing profile (audiogram thresholds)
+   */
+  setHearingProfile: (profile) => set({ hearingProfile: profile }),
+  
+  /**
+   * Toggle Therapist Dashboard view
+   */
+  setShowTherapistDashboard: (show) => set({ showTherapistDashboard: show }),
+  
+  /**
+   * Launch assessment mode with specified type
+   */
+  launchAssessment: (type = 'baseline') => set({ showAssessmentMode: true, assessmentTypeToRun: type }),
+  
+  /**
+   * Close assessment mode
+   */
+  closeAssessment: () => set({ showAssessmentMode: false }),
+  
+  /**
+   * Toggle achievements gallery
+   */
+  setShowAchievements: (show) => set({ showAchievements: show }),
   
   /**
    * Set analytics session ID
@@ -63,26 +119,72 @@ export const useGameStore = create((set, get) => ({
    * Update ML metrics from backend recommendation
    */
   setMLMetrics: (metrics) => set({ 
-    cognitiveLoad: metrics.cognitive_load || 0,
-    inFlowState: metrics.in_flow_state || false,
-    mlReason: metrics.reason || ''
+    mlMetrics: {
+      cognitive_load: metrics.cognitive_load || 0,
+      in_flow_state: metrics.in_flow_state || false,
+      reason: metrics.reason || '',
+      noise_level: metrics.noise_level || 0.2,
+      speed_modifier: metrics.speed_modifier || 1.0
+    }
   }),
 
   /**
    * Initialize game session
    */
-  startGame: () => set({ gameStarted: true, score: 0, level: 1, speedModifier: 1 }),
+  startGame: () => set({ gameStarted: true, score: 0, level: 1, speedModifier: 1, isPaused: false }),
+  
+  /**
+   * Stop game session, end analytics session, and reset state
+   */
+  stopGame: () => {
+    const state = get()
+    // End analytics session if one exists
+    if (state.sessionId) {
+      fetch(`${API_URL}/analytics/end-session/${state.sessionId}`, {
+        method: 'POST'
+      }).catch(err => console.error("Failed to end session", err))
+    }
+    set({ 
+      gameStarted: false, 
+      isPaused: false,
+      sessionId: null,
+      emergencyActive: false,
+      emergencyType: null,
+      emergencyAction: null,
+      feedback: null,
+      lane: 0,
+      speedModifier: 1
+    })
+  },
+  
+  /**
+   * Toggle pause state
+   */
+  setPaused: (paused) => set({ isPaused: paused }),
   
   /**
    * Update player lane position and auto-validate if emergency active
    */
   setLane: (lane) => {
+    console.log(`🚗 Lane changed to: ${lane}`)
     set({ lane })
     // Check if correct lane for current emergency
     const state = get()
     if (state.emergencyActive && state.targetLane !== null) {
+      // If response is already locked, ignore further presses
+      if (state.responseLocked) {
+        console.log('🔒 Response already locked - ignoring lane change')
+        return
+      }
+      // Lock response on first press
+      set({ responseLocked: true })
+      console.log(`🎯 Checking lane target: current=${lane}, target=${state.targetLane}`)
       if (lane === state.targetLane) {
+        console.log('✅ CORRECT LANE! Completing emergency as success')
         state.completeEmergency(true)
+      } else {
+        console.log('❌ WRONG LANE! Completing emergency as failure')
+        state.completeEmergency(false)
       }
     }
   },
@@ -91,25 +193,37 @@ export const useGameStore = create((set, get) => ({
    * Update player speed and auto-validate if emergency active
    */
   setSpeed: (speed) => {
+    console.log(`⚡ Speed changed to: ${speed}`)
     set({ speedModifier: speed })
     // Check if correct speed for current emergency
     const state = get()
     if (state.emergencyActive && state.targetSpeed !== null) {
-        if (state.targetSpeed === 0 && speed === 0) {
-            state.completeEmergency(true)
-        }
-        if (state.targetSpeed === 0.5 && speed === 0.5) {
-            state.completeEmergency(true)
-        }
+      // If response is already locked, ignore further presses
+      if (state.responseLocked) {
+        console.log('🔒 Response already locked - ignoring speed change')
+        return
+      }
+      // Lock response on first press
+      set({ responseLocked: true })
+      console.log(`🎯 Checking speed target: current=${speed}, target=${state.targetSpeed}`)
+      if (state.targetSpeed === speed) {
+        console.log('✅ CORRECT SPEED! Completing emergency as success')
+        state.completeEmergency(true)
+      } else {
+        console.log('❌ WRONG SPEED! Completing emergency as failure')
+        state.completeEmergency(false)
+      }
     }
   },
 
   /**
    * Trigger new emergency scenario
-   * @param {string} type - Scenario type (ambulance, police, etc.)
+   * @param {string} type - Scenario type (tsunami_siren, earthquake_alarm, etc.)
    * @param {string} action - Required action (Move Right, Stop, etc.)
    */
   triggerEmergency: (type, action) => {
+    console.log(`🎯 STORE.triggerEmergency called with TYPE: "${type}", ACTION: "${action}"`)
+    
     let tLane = null
     let tSpeed = null
 
@@ -118,7 +232,26 @@ export const useGameStore = create((set, get) => ({
     if (action === 'Move Left') tLane = -1
     if (action === 'Stop') tSpeed = 0
     if (action === 'Slow Down') tSpeed = 0.5
-    if (type === 'police') tLane = 0  // Police: Stay Center
+    if (action === 'Find Safe Place') tSpeed = 0.5
+    if (action === 'Stay Center') tLane = 0
+    // Crisis scenario overrides — each sound has a unique action
+    if (type === 'tsunami_siren') { tLane = 1; tSpeed = null }       // Move Right (evacuate to high ground)
+    if (type === 'earthquake_alarm') { tSpeed = 0; tLane = null }    // Stop (Drop, Cover, Hold On)
+    if (type === 'flood_warning') { tSpeed = 0.5; tLane = null }     // Find Safe Place (seek shelter)
+    if (type === 'air_raid_siren') { tLane = 0; tSpeed = null }      // Stay Center (take cover in place)
+    if (type === 'building_fire_alarm') { tLane = -1; tSpeed = null } // Move Left (evacuate building)
+
+    // Trigger haptic feedback for hearing-impaired accessibility
+    if ('vibrate' in navigator) {
+      const hapticPatterns = {
+        tsunami_siren: [300, 100, 300, 100, 300, 100, 300],
+        earthquake_alarm: [500, 100, 500, 100, 500],
+        flood_warning: [300, 200, 300, 200, 300, 200],
+        air_raid_siren: [400, 100, 400, 100, 400, 100],
+        building_fire_alarm: [150, 75, 150, 75, 150, 75, 150]
+      }
+      navigator.vibrate(hapticPatterns[type] || [200])
+    }
 
     set({ 
       emergencyActive: true, 
@@ -126,8 +259,12 @@ export const useGameStore = create((set, get) => ({
       emergencyAction: action,
       targetLane: tLane,
       targetSpeed: tSpeed,
-      feedback: null
+      feedback: null,
+      responseLocked: false,  // Reset lock for new emergency
+      emergencyStartTime: performance.now()  // High-precision RT measurement
     })
+    
+    console.log(`✅ Emergency state updated - emergencyType set to: "${type}"`)
   },
   
   /**
@@ -136,6 +273,26 @@ export const useGameStore = create((set, get) => ({
    */
   completeEmergency: (success) => {
     const state = get()
+    
+    // Prevent multiple completions of the same emergency
+    if (!state.emergencyActive) {
+      console.log('⚠️ CompletEmergency called but no emergency active - ignoring')
+      return
+    }
+    
+    console.log(`✅ Completing emergency - Success: ${success}`)
+    
+    // Calculate actual reaction time using high-precision timer
+    const reactionTime = state.emergencyStartTime 
+      ? parseFloat(((performance.now() - state.emergencyStartTime) / 1000).toFixed(3))
+      : 0
+    
+    console.log(`⏱️ Reaction time: ${reactionTime}s`)
+    
+    // Haptic feedback for result
+    if ('vibrate' in navigator) {
+      navigator.vibrate(success ? [100, 50, 100] : [500])
+    }
     
     // Send attempt to backend for ML processing
     if (state.userId) {
@@ -146,8 +303,11 @@ export const useGameStore = create((set, get) => ({
                 user_id: state.userId,
                 scenario_type: state.emergencyType,
                 success: success,
-                reaction_time: 0, // TODO: Measure actual reaction time
-                difficulty_level: state.level
+                reaction_time: reactionTime,
+                difficulty_level: state.level,
+                noise_level: state.mlMetrics.noise_level,
+                speed_modifier: state.mlMetrics.speed_modifier,
+                game_mode: state.gameMode
             })
         }).catch(err => console.error("Failed to record attempt", err))
     }
@@ -162,6 +322,8 @@ export const useGameStore = create((set, get) => ({
         emergencyType: null, 
         targetLane: null,
         targetSpeed: null,
+        emergencyStartTime: null,
+        responseLocked: false,
         score: newScore,
         level: newLevel,
         speedModifier: 1,  // Reset to normal speed
@@ -173,6 +335,8 @@ export const useGameStore = create((set, get) => ({
         emergencyType: null, 
         targetLane: null,
         targetSpeed: null,
+        emergencyStartTime: null,
+        responseLocked: false,
         speedModifier: 1,
         feedback: 'Missed! ❌'
       })
@@ -186,9 +350,13 @@ export const useGameStore = create((set, get) => ({
    * Clear emergency when time runs out (treated as failure)
    */
   clearEmergency: () => {
+    console.log('⏰ clearEmergency called (timeout)')
     const state = get()
     if (state.emergencyActive) {
+        console.log('❌ Marking emergency as FAILED due to timeout')
         state.completeEmergency(false)  // Timeout = failure
+    } else {
+      console.log('ℹ️ No active emergency to clear')
     }
   },
 }))
