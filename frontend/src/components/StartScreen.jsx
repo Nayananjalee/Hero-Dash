@@ -287,45 +287,17 @@ export default function StartScreen() {
   const [showDashboard, setShowDashboard] = useState(false)
   const [step, setStep] = useState(1) // Multi-step onboarding: 1=name, 2=profile, 3=mode
 
-  // ========== Auto-login from Research App (SilentSpark) ==========
-  // When user comes from the research app, userId and username are passed via query params
+  // ========== Pre-fill from Research App (SilentSpark) ==========
+  // When user comes from the research app, userId and username are passed via query params.
+  // We pre-fill the name so the user still goes through the normal onboarding steps.
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const researchUserId = params.get('userId')
     const researchUsername = params.get('username')
     if (researchUserId && researchUsername) {
       console.log('\ud83d\udd17 Research app user detected:', researchUsername, '(ID:', researchUserId, ')')
-      // Use the username from research app — skip name entry page
+      // Pre-fill name but let user continue through normal step flow
       setName(researchUsername)
-      const autoLogin = async () => {
-        setLoading(true)
-        try {
-          const response = await fetch(`${API_URL}/users/`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              username: researchUsername,
-              age_group: '7-8',
-              hearing_level: 'mild'
-            })
-          })
-          const data = await response.json()
-          setUserId(data.id, data.username)
-          setAgeGroup('7-8')
-          setGameMode('audio-visual')
-          setHearingProfile({ hearing_level: 'mild' })
-          startGame()
-        } catch (error) {
-          console.error('Auto-login failed, using research app credentials directly:', error)
-          // Use the research app userId and username directly — don't fall back to name entry
-          setUserId(Number(researchUserId), researchUsername)
-          setAgeGroup('7-8')
-          setGameMode('audio-visual')
-          setHearingProfile({ hearing_level: 'mild' })
-          startGame()
-        }
-      }
-      autoLogin()
     }
   }, [])
 
