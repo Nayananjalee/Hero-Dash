@@ -288,12 +288,15 @@ export default function StartScreen() {
   const [step, setStep] = useState(1) // Multi-step onboarding: 1=name, 2=profile, 3=mode
 
   // ========== Auto-login from Research App (SilentSpark) ==========
-  // When user comes from the research app, userId is passed via ?userId= query parameter
+  // When user comes from the research app, userId and username are passed via query params
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const researchUserId = params.get('userId')
-    if (researchUserId) {
-      console.log('\ud83d\udd17 Research app userId detected:', researchUserId)
+    const researchUsername = params.get('username')
+    if (researchUserId && researchUsername) {
+      console.log('\ud83d\udd17 Research app user detected:', researchUsername, '(ID:', researchUserId, ')')
+      // Use the username from research app — skip name entry page
+      setName(researchUsername)
       const autoLogin = async () => {
         setLoading(true)
         try {
@@ -301,7 +304,7 @@ export default function StartScreen() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              username: `research_user_${researchUserId}`,
+              username: researchUsername,
               age_group: '7-8',
               hearing_level: 'mild'
             })
