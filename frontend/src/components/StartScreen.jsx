@@ -288,13 +288,12 @@ export default function StartScreen() {
   const [step, setStep] = useState(1) // Multi-step onboarding: 1=name, 2=profile, 3=mode
 
   // ========== Auto-login from Research App (SilentSpark) ==========
-  // When user navigates from the research app, userId is passed as a query parameter
+  // When user comes from the research app, userId is passed via ?userId= query parameter
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const researchUserId = params.get('userId')
     if (researchUserId) {
-      console.log('🔗 Research app userId detected:', researchUserId)
-      // Auto-register user with research app userId and start the game
+      console.log('\ud83d\udd17 Research app userId detected:', researchUserId)
       const autoLogin = async () => {
         setLoading(true)
         try {
@@ -314,8 +313,7 @@ export default function StartScreen() {
           setHearingProfile({ hearing_level: 'mild' })
           startGame()
         } catch (error) {
-          console.error('Auto-login failed:', error)
-          // Fall back to manual login — don't block the user
+          console.error('Auto-login failed, showing manual setup:', error)
           setLoading(false)
         }
       }
