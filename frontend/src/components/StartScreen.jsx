@@ -316,8 +316,13 @@ export default function StartScreen() {
           setHearingProfile({ hearing_level: 'mild' })
           startGame()
         } catch (error) {
-          console.error('Auto-login failed, showing manual setup:', error)
-          setLoading(false)
+          console.error('Auto-login failed, using research app credentials directly:', error)
+          // Use the research app userId and username directly — don't fall back to name entry
+          setUserId(Number(researchUserId), researchUsername)
+          setAgeGroup('7-8')
+          setGameMode('audio-visual')
+          setHearingProfile({ hearing_level: 'mild' })
+          startGame()
         }
       }
       autoLogin()
