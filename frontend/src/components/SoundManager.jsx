@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../store'
 
 export default function SoundManager() {
-  const { emergencyActive, emergencyType, gameStarted, level } = useGameStore()
+  const { emergencyActive, emergencyType, gameStarted, level, isPaused } = useGameStore()
   const [soundEnabled, setSoundEnabled] = useState(false)
   const [showButton, setShowButton] = useState(true)
   const [audioInitialized, setAudioInitialized] = useState(false)
@@ -75,6 +75,43 @@ export default function SoundManager() {
     audioRefs.current.cityAmbience.volume = noiseVolume
     audioRefs.current.engine.volume = 0.2
   }, [level])
+
+  // Handle Pause/Resume — mute all audio when paused, restore when resumed
+  useEffect(() => {
+    if (!soundEnabled) return
+    const allAudio = Object.values(audioRefs.current)
+    if (isPaused) {
+      // Pause all playing audio
+      allAudio.forEach(audio => {
+        if (!audio.paused) {
+          audio.dataset.wasPlaying = 'true'
+          audio.pause()
+        }
+      })
+      console.log('⏸️ All sounds paused')
+    } else {
+      // Resume audio that was playing before pause
+      allAudio.forEach(audio => {
+        if (audio.dataset.wasPlaying === 'true') {
+          audio.play().catch(() => {})
+          audio.dataset.wasPlaying = ''
+        }
+      })
+      console.log('▶️ Sounds resumed')
+    }
+  }, [isPaused, soundEnabled])
+
+  // Handle Game Stop — stop all audio when game ends
+  useEffect(() => {
+    if (!gameStarted) {
+      Object.values(audioRefs.current).forEach(audio => {
+        audio.pause()
+        audio.currentTime = 0
+        audio.dataset.wasPlaying = ''
+      })
+      console.log('🛑 All sounds stopped — game ended')
+    }
+  }, [gameStarted])
 
   // Handle Game Start (Ambience)
   useEffect(() => {
