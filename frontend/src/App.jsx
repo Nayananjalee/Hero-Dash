@@ -215,22 +215,24 @@ function App() {
       {/* 3D Game Scene */}
       <Canvas 
         camera={{ position: [0, 5, 10], fov: 50 }} 
-        shadows
+        shadows={false}
+        dpr={[1, 1.5]}
+        performance={{ min: 0.5 }}
         style={{ pointerEvents: 'none' }}
+        gl={{ antialias: false, powerPreference: 'high-performance' }}
       >
         <fog attach="fog" args={['#101010', 10, 50]} />
         <Suspense fallback={null}>
           {/* Lighting setup */}
-          <ambientLight intensity={0.2} />
-          <spotLight position={[10, 20, 10]} angle={0.5} penumbra={1} intensity={1} castShadow />
-          <pointLight position={[-10, -10, -10]} intensity={0.5} />
+          <ambientLight intensity={0.3} />
+          <spotLight position={[10, 20, 10]} angle={0.5} penumbra={1} intensity={1} />
           
           {/* Main game scene with car and environment */}
           <GameScene />
           
           {/* Environment effects */}
           <Environment preset="night" />
-          <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
+          <Stars radius={100} depth={50} count={1500} factor={4} saturation={0} fade speed={1} />
         </Suspense>
       </Canvas>
     </div>
