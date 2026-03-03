@@ -3,6 +3,7 @@ import { useGameStore } from '../store'
 import AnalyticsDashboard from './AnalyticsDashboard'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const RESEARCH_APP_URL = import.meta.env.VITE_RESEARCH_APP_URL || 'http://localhost:5173'
 
 // ============================================================
 // AGE GROUP DEFINITIONS (Based on Tharanga & Viraj 2023)
@@ -286,6 +287,42 @@ export default function StartScreen() {
   const [showDashboard, setShowDashboard] = useState(false)
   const [step, setStep] = useState(1) // Multi-step onboarding: 1=name, 2=profile, 3=mode
 
+  // ========== Auto-login from Research App (SilentSpark) ==========
+  // When user navigates from the research app, userId is passed as a query parameter
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const researchUserId = params.get('userId')
+    if (researchUserId) {
+      console.log('🔗 Research app userId detected:', researchUserId)
+      // Auto-register user with research app userId and start the game
+      const autoLogin = async () => {
+        setLoading(true)
+        try {
+          const response = await fetch(`${API_URL}/users/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              username: `research_user_${researchUserId}`,
+              age_group: '7-8',
+              hearing_level: 'mild'
+            })
+          })
+          const data = await response.json()
+          setUserId(data.id, data.username)
+          setAgeGroup('7-8')
+          setGameMode('audio-visual')
+          setHearingProfile({ hearing_level: 'mild' })
+          startGame()
+        } catch (error) {
+          console.error('Auto-login failed:', error)
+          // Fall back to manual login — don't block the user
+          setLoading(false)
+        }
+      }
+      autoLogin()
+    }
+  }, [])
+
   const handleNext = () => {
     if (step === 1 && !name.trim()) return alert("Please enter your name (කරුණාකර ඔබේ නම ඇතුළත් කරන්න)")
     if (step < 3) setStep(step + 1)
@@ -381,6 +418,26 @@ export default function StartScreen() {
       overflow: 'hidden'
     }}>
       <FloatingParticles />
+
+      {/* ========== BACK TO SILENTSPARK ========== */}
+      <a
+        href={RESEARCH_APP_URL}
+        style={{
+          position: 'fixed', top: 14, left: 14,
+          background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(8px)',
+          border: '1.5px solid rgba(255,255,255,0.3)',
+          borderRadius: '12px', padding: '8px 18px',
+          color: 'white', fontSize: '0.88rem', fontWeight: 700,
+          textDecoration: 'none', zIndex: 200,
+          display: 'flex', alignItems: 'center', gap: '6px',
+          transition: 'all 0.2s',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.25)'
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.28)' }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.15)' }}
+      >
+        ← SilentSpark
+      </a>
 
       {/* ========== HEADER (compact) ========== */}
       <div style={{ zIndex: 1, animation: 'popBounce 0.6s ease-out', flexShrink: 0 }}>
