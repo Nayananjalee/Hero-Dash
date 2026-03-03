@@ -141,8 +141,8 @@ export default function UI() {
         </div>
       )}
 
-      {/* Pause Overlay */}
-      {isPaused && (
+      {/* Pause Overlay — only show when paused AND exit confirm is NOT open */}
+      {isPaused && !showExitConfirm && (
         <div style={{
           position: 'fixed',
           top: 0,
@@ -168,25 +168,46 @@ export default function UI() {
             <p style={{ fontSize: '1.3rem', marginBottom: '40px', opacity: 0.9 }}>
               Game is paused. Click Resume to continue.
             </p>
-            <button
-              onClick={handlePause}
-              style={{
-                padding: '18px 50px',
-                background: '#2ecc71',
-                border: 'none',
-                borderRadius: '15px',
-                color: 'white',
-                fontSize: '1.5rem',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
-                transition: 'transform 0.2s'
-              }}
-              onMouseOver={(e) => e.target.style.transform = 'scale(1.05)'}
-              onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
-            >
-              ▶️ Resume Game
-            </button>
+            <div style={{ display: 'flex', gap: '20px', justifyContent: 'center' }}>
+              <button
+                onClick={handlePause}
+                style={{
+                  padding: '18px 50px',
+                  background: '#2ecc71',
+                  border: 'none',
+                  borderRadius: '15px',
+                  color: 'white',
+                  fontSize: '1.5rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
+                  transition: 'transform 0.2s'
+                }}
+                onMouseOver={(e) => e.target.style.transform = 'scale(1.05)'}
+                onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
+              >
+                ▶️ Resume Game
+              </button>
+              <button
+                onClick={handleExit}
+                style={{
+                  padding: '18px 50px',
+                  background: '#e74c3c',
+                  border: 'none',
+                  borderRadius: '15px',
+                  color: 'white',
+                  fontSize: '1.5rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
+                  transition: 'transform 0.2s'
+                }}
+                onMouseOver={(e) => e.target.style.transform = 'scale(1.05)'}
+                onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
+              >
+                🚪 Exit Game
+              </button>
+            </div>
           </div>
         </div>
       )}
