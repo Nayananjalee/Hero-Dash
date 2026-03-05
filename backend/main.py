@@ -24,8 +24,19 @@ import json
 # Load environment variables from .env file
 load_dotenv()
 
+# Log which database is being used (mask credentials)
+db_url = database.SQLALCHEMY_DATABASE_URL
+if "://" in db_url and not db_url.startswith("sqlite"):
+    # Mask password in log output
+    parts = db_url.split("@")
+    db_display = f"postgresql://***@{parts[-1]}" if len(parts) > 1 else "postgresql://***"
+else:
+    db_display = db_url
+print(f"🗄️  Database: {db_display}")
+
 # Initialize database tables on startup
 models.Base.metadata.create_all(bind=database.engine)
+print("✅ Database tables initialized")
 
 app = FastAPI()
 
