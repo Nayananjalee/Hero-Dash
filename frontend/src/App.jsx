@@ -35,118 +35,85 @@ function App() {
   const assessmentTypeToRun = useGameStore((state) => state.assessmentTypeToRun)
   const showAchievements = useGameStore((state) => state.showAchievements)
   const clearTimeoutId = useRef(null) // Store timeout ID for clearing
+  const emergencyRemainingMs = useRef(null) // Track remaining ms when paused
+  const emergencyDurationMs = 8000 // 8 second emergency window
+
+  // Helper: schedule (or re-schedule) the auto-clear timeout for an active emergency
+  const scheduleAutoClear = (ms) => {
+    if (clearTimeoutId.current) clearTimeout(clearTimeoutId.current)
+    emergencyRemainingMs.current = ms
+    const startedAt = performance.now()
+    clearTimeoutId.current = setTimeout(() => {
+      console.log('⏰ Auto-clearing emergency (timeout)')
+      useGameStore.getState().clearEmergency()
+      clearTimeoutId.current = null
+      emergencyRemainingMs.current = null
+    }, ms)
+    // Store start so we can compute remaining on next pause
+    clearTimeoutId._startedAt = startedAt
+  }
+
+  // Fetch a new emergency from backend and trigger it
+  const fetchAndTrigger = async () => {
+    if (useGameStore.getState().emergencyActive) {
+      console.log('⏭️ Skipping - emergency already active')
+      return
+    }
+    try {
+      console.log('🎯 Fetching emergency from backend...')
+      const response = await fetch(`${API_URL}/recommend/${userId}`)
+      if (!response.ok) throw new Error('Failed to fetch')
+      const data = await response.json()
+      console.log(`🚨 Emergency: ${data.type} - ${data.action}`)
+
+      useGameStore.getState().setMLMetrics({
+        cognitive_load: data.cognitive_load,
+        in_flow_state: data.in_flow_state,
+        reason: data.reason,
+        noise_level: data.noise_level,
+        speed_modifier: data.speed_modifier
+      })
+
+      triggerEmergency(data.type, data.action)
+      scheduleAutoClear(emergencyDurationMs)
+    } catch (error) {
+      console.error('❌ Backend error or offline:', error)
+    }
+  }
 
   // Poll backend for personalized scenario recommendations
   useEffect(() => {
     if (!gameStarted || !userId || isPaused) {
-      console.log('🚫 Polling skipped - gameStarted:', gameStarted, 'userId:', userId, 'isPaused:', isPaused)
+      // --- PAUSING: save remaining time for the active emergency ---
+      if (isPaused && clearTimeoutId.current && emergencyRemainingMs.current != null) {
+        const elapsed = performance.now() - (clearTimeoutId._startedAt || 0)
+        const remaining = Math.max(0, emergencyRemainingMs.current - elapsed)
+        clearTimeout(clearTimeoutId.current)
+        clearTimeoutId.current = null
+        emergencyRemainingMs.current = remaining
+        console.log(`⏸️ Paused with ${(remaining / 1000).toFixed(1)}s remaining on emergency`)
+      }
       return
     }
 
-    console.log('✅ Starting emergency polling - checking every 10 seconds')
-    
-    // Trigger first emergency quickly (after 3 seconds instead of 10)
-    const triggerFirstEmergency = async () => {
-      // Don't trigger if emergency already active
-      if (useGameStore.getState().emergencyActive) {
-        console.log('⏭️ Skipping - emergency already active')
-        return
-      }
-      
-      try {
-        console.log('🎯 Fetching first emergency from backend...')
-        const response = await fetch(`${API_URL}/recommend/${userId}`)
-        if (!response.ok) throw new Error("Failed to fetch")
-        
-        const data = await response.json()
-        console.log('📥 Received recommendation:', data)
-        console.log(`🚨 Emergency details - TYPE: "${data.type}", ACTION: "${data.action}"`)        
-        // Store ML metrics for UI display
-        useGameStore.getState().setMLMetrics({
-          cognitive_load: data.cognitive_load,
-          in_flow_state: data.in_flow_state,
-          reason: data.reason,
-          noise_level: data.noise_level,
-          speed_modifier: data.speed_modifier
-        })
-        
-        // Trigger emergency with backend-provided scenario
-        console.log(`🚨 Triggering emergency: ${data.type} - ${data.action}`)
-        triggerEmergency(data.type, data.action)
-        
-        // Clear any existing timeout
-        if (clearTimeoutId.current) {
-          clearTimeout(clearTimeoutId.current)
-        }
-        
-        // Auto-clear after 8 seconds if user doesn't respond
-        clearTimeoutId.current = setTimeout(() => {
-            console.log('⏰ Auto-clearing emergency after 8 seconds')
-            useGameStore.getState().clearEmergency()
-            clearTimeoutId.current = null
-        }, 8000)
-        
-      } catch (error) {
-        console.error("❌ Backend error or offline:", error)
-      }
+    console.log('✅ Starting emergency polling')
+
+    // --- UNPAUSING: if emergency is still active, resume its timer ---
+    if (useGameStore.getState().emergencyActive && emergencyRemainingMs.current != null && emergencyRemainingMs.current > 0) {
+      console.log(`▶️ Resuming emergency timer with ${(emergencyRemainingMs.current / 1000).toFixed(1)}s`)
+      scheduleAutoClear(emergencyRemainingMs.current)
     }
-    
-    // First emergency after 3 seconds
-    const firstTimeout = setTimeout(triggerFirstEmergency, 3000)
+
+    // First emergency after 3 seconds (only if none active)
+    const firstTimeout = setTimeout(fetchAndTrigger, 3000)
 
     // Subsequent emergencies every 10 seconds
-    const interval = setInterval(async () => {
-      // Don't trigger if emergency already active
-      if (useGameStore.getState().emergencyActive) {
-        console.log('⏭️ Skipping interval - emergency still active')
-        return
-      }
-      
-      try {
-        console.log('🎯 Fetching next emergency from backend...')
-        const response = await fetch(`${API_URL}/recommend/${userId}`)
-        if (!response.ok) throw new Error("Failed to fetch")
-        
-        const data = await response.json()
-        console.log('📥 Received recommendation:', data)
-        console.log(`🚨 Emergency details - TYPE: "${data.type}", ACTION: "${data.action}"`)
-        
-        // Store ML metrics for UI display
-        useGameStore.getState().setMLMetrics({
-          cognitive_load: data.cognitive_load,
-          in_flow_state: data.in_flow_state,
-          reason: data.reason,
-          noise_level: data.noise_level,
-          speed_modifier: data.speed_modifier
-        })
-        
-        // Trigger emergency with backend-provided scenario
-        console.log(`🚨 Triggering emergency: ${data.type} - ${data.action}`)
-        triggerEmergency(data.type, data.action)
-        
-        // Clear any existing timeout
-        if (clearTimeoutId.current) {
-          clearTimeout(clearTimeoutId.current)
-        }
-        
-        // Auto-clear after 8 seconds if user doesn't respond
-        clearTimeoutId.current = setTimeout(() => {
-            console.log('⏰ Auto-clearing emergency after 8 seconds')
-            useGameStore.getState().clearEmergency()
-            clearTimeoutId.current = null
-        }, 8000)
-        
-      } catch (error) {
-        console.error("❌ Backend error or offline:", error)
-      }
-    }, 10000) // Poll every 10 seconds
+    const interval = setInterval(fetchAndTrigger, 10000)
 
     return () => {
       clearTimeout(firstTimeout)
       clearInterval(interval)
-      if (clearTimeoutId.current) {
-        clearTimeout(clearTimeoutId.current)
-      }
+      // Don't clear the emergency timeout here — handled above on pause
     }
   }, [gameStarted, userId, isPaused, triggerEmergency])
   
@@ -156,6 +123,7 @@ function App() {
       console.log('🛑 Emergency completed - clearing auto-timeout')
       clearTimeout(clearTimeoutId.current)
       clearTimeoutId.current = null
+      emergencyRemainingMs.current = null
     }
   }, [emergencyActive])
   
