@@ -9,7 +9,13 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.0
       - key: DATABASE_URL
-        value: sqlite:///./hero_dash.db
+        # IMPORTANT: Set this to your external PostgreSQL connection string.
+        # SQLite will NOT persist on Render free tier (ephemeral filesystem).
+        # Get a free PostgreSQL database from:
+        #   - Neon (neon.tech): postgresql://user:pass@ep-xxx.region.neon.tech/dbname?sslmode=require
+        #   - Supabase (supabase.com): postgresql://postgres:pass@db.xxx.supabase.co:5432/postgres
+        # Then set in Render Dashboard > Environment > DATABASE_URL
+        sync: false  # Must be set manually in Render dashboard
       - key: ALLOWED_ORIGINS
         value: https://hero-dash.vercel.app,http://localhost:5173
     healthCheckPath: /
