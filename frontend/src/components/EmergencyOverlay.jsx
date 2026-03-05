@@ -15,7 +15,7 @@
  * - Visual-only mode support (no reliance on audio)
  */
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useGameStore } from '../store'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -84,21 +84,49 @@ const VEHICLE_THEMES = {
   }
 }
 
-// Countdown Timer Component
+// Countdown Timer Component — pause-aware
 function CountdownBar({ duration = 8 }) {
+  const isPaused = useGameStore((state) => state.isPaused)
   const [progress, setProgress] = useState(100)
-  
+  const elapsedRef = useRef(0)       // total elapsed seconds (accumulated across pauses)
+  const frameRef = useRef(null)
+  const lastTickRef = useRef(null)
+
   useEffect(() => {
-    const start = performance.now()
-    const animate = () => {
-      const elapsed = (performance.now() - start) / 1000
-      const remaining = Math.max(0, ((duration - elapsed) / duration) * 100)
-      setProgress(remaining)
-      if (remaining > 0) requestAnimationFrame(animate)
+    if (isPaused) {
+      // Freeze — stop the animation loop
+      if (frameRef.current) cancelAnimationFrame(frameRef.current)
+      lastTickRef.current = null
+      return
     }
-    const raf = requestAnimationFrame(animate)
-    return () => cancelAnimationFrame(raf)
-  }, [duration])
+
+    // Start / resume the countdown
+    lastTickRef.current = performance.now()
+
+    const animate = () => {
+      const now = performance.now()
+      if (lastTickRef.current != null) {
+        elapsedRef.current += (now - lastTickRef.current) / 1000
+      }
+      lastTickRef.current = now
+      const remaining = Math.max(0, ((duration - elapsedRef.current) / duration) * 100)
+      setProgress(remaining)
+      if (remaining > 0) {
+        frameRef.current = requestAnimationFrame(animate)
+      }
+    }
+    frameRef.current = requestAnimationFrame(animate)
+
+    return () => {
+      if (frameRef.current) cancelAnimationFrame(frameRef.current)
+    }
+  }, [duration, isPaused])
+
+  // Reset elapsed when a new emergency starts (component remounts)
+  useEffect(() => {
+    elapsedRef.current = 0
+    setProgress(100)
+  }, [])
 
   const barColor = progress > 60 ? '#2ecc71' : progress > 30 ? '#f39c12' : '#e74c3c'
 
