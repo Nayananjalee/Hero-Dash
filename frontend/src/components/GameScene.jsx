@@ -196,6 +196,7 @@ function Car() {
   const setLane = useGameStore((state) => state.setLane)
   const setSpeed = useGameStore((state) => state.setSpeed)
   const isPaused = useGameStore((state) => state.isPaused)
+  const isGameOver = useGameStore((state) => state.isGameOver)
   
   // Pass speed to Wheel components via ref (eliminates 16 store subscriptions)
   const { speed } = useSpeedValues()
@@ -217,7 +218,7 @@ function Car() {
   // Keyboard controls
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (isPaused) return
+      if (isPaused || isGameOver) return
       if (e.key === 'ArrowLeft' || e.key === 'a') setLane(Math.max(-1, lane - 1))
       if (e.key === 'ArrowRight' || e.key === 'd') setLane(Math.min(1, lane + 1))
       if (e.key === 'ArrowUp' || e.key === 'w') {
@@ -234,17 +235,17 @@ function Car() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [lane, setLane, setSpeed, isPaused])
+  }, [lane, setLane, setSpeed, isPaused, isGameOver])
 
   // Touch controls — swipe left/right for lane, tap zones for speed
   useEffect(() => {
     let touchStartX = null
     const handleTouchStart = (e) => {
-      if (isPaused) return
+      if (isPaused || isGameOver) return
       touchStartX = e.touches[0].clientX
     }
     const handleTouchEnd = (e) => {
-      if (isPaused || touchStartX === null) return
+      if (isPaused || isGameOver || touchStartX === null) return
       const dx = e.changedTouches[0].clientX - touchStartX
       const dy = e.changedTouches[0].clientY
       const screenH = window.innerHeight
@@ -266,7 +267,7 @@ function Car() {
       window.removeEventListener('touchstart', handleTouchStart)
       window.removeEventListener('touchend', handleTouchEnd)
     }
-  }, [lane, setLane, setSpeed, isPaused])
+  }, [lane, setLane, setSpeed, isPaused, isGameOver])
 
   return (
     <group ref={mesh} position={[0, 0, 0]}>
