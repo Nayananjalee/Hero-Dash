@@ -449,13 +449,8 @@ export default function TherapistDashboard({ userId, onBack }) {
     try {
       const res = await fetch(`${API_URL}/export/clinical-report/${userId}?days=90`)
       const data = await res.json()
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `clinical_report_${userId}_${new Date().toISOString().split('T')[0]}.json`
-      a.click()
-      URL.revokeObjectURL(url)
+      const { default: generatePDFReport } = await import('../generatePDFReport')
+      generatePDFReport(data)
     } catch (err) {
       alert('Export failed. Check connection.')
     } finally {
@@ -521,7 +516,7 @@ export default function TherapistDashboard({ userId, onBack }) {
           <button onClick={handleExport} disabled={exporting} style={{
             padding: '8px 16px', background: 'rgba(46,204,113,0.3)', border: '1px solid #2ecc71',
             borderRadius: '10px', color: 'white', cursor: exporting ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '0.85rem'
-          }}>{exporting ? '⏳' : '📤'} Export Report</button>
+          }}>{exporting ? '⏳ Generating...' : '📄 Export PDF'}</button>
           <button onClick={fetchAllData} style={{
             padding: '8px 16px', background: 'rgba(52,152,219,0.3)', border: '1px solid #3498db',
             borderRadius: '10px', color: 'white', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem'
