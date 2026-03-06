@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useGameStore } from '../store'
+import { FEEDBACK, TOKENS } from '../config'
 
 export default function UI() {
   const { score, level, feedback, gameStarted, isPaused } = useGameStore()
@@ -104,40 +105,51 @@ export default function UI() {
         </h2>
       </div>
 
-      {/* Controls Hint - Bottom Center */}
+      {/* Controls Hint - Bottom Center (complete guide) */}
       <div style={{
         position: 'absolute',
         bottom: 30,
         left: '50%',
         transform: 'translateX(-50%)',
-        fontSize: '1.3rem',
-        background: 'rgba(0,0,0,0.7)',
+        fontSize: TOKENS.fontLg,
+        background: TOKENS.panelBg,
         padding: '15px 30px',
-        borderRadius: '15px',
+        borderRadius: TOKENS.radiusMd,
         color: 'white',
         textShadow: '1px 1px 2px #000',
-        border: '2px solid rgba(255,255,255,0.3)',
+        border: `2px solid ${TOKENS.panelBorder}`,
         zIndex: 5,
-        pointerEvents: 'none'
+        pointerEvents: 'none',
+        display: 'flex',
+        gap: '18px',
+        flexWrap: 'wrap',
+        justifyContent: 'center'
       }}>
-        ⬅️ Left Arrow | Right Arrow ➡️
+        <span>⬅️ Left</span>
+        <span>➡️ Right</span>
+        <span>⬇️ Stop</span>
+        <span>🇸 Safe Place</span>
+        <span>⬆️ Go</span>
       </div>
 
-      {/* Feedback Messages */}
+      {/* Feedback Messages — colorblind-safe, bigger for young readers */}
       {feedback && (
         <div style={{
           position: 'fixed',
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          fontSize: '5rem',
+          fontSize: '5.5rem',
           fontWeight: 'bold',
           textShadow: '0 0 30px rgba(0,0,0,1), 0 0 10px rgba(0,0,0,1)',
-          color: feedback.includes('Correct') ? '#2ecc71' : '#e74c3c',
+          color: feedback.includes('Correct') ? FEEDBACK.success.color : FEEDBACK.failure.color,
           animation: 'popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-          zIndex: 200
+          zIndex: 200,
+          padding: '20px 40px',
+          background: feedback.includes('Correct') ? FEEDBACK.success.bg : FEEDBACK.failure.bg,
+          borderRadius: TOKENS.radiusLg,
         }}>
-          {feedback}
+          {feedback.includes('Correct') ? FEEDBACK.success.label : FEEDBACK.failure.label}
         </div>
       )}
 
