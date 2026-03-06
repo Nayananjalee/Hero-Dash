@@ -22,6 +22,8 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import AudiogramInput from './AudiogramInput'
+import jsPDF from 'jspdf'
+import 'jspdf-autotable'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -448,19 +450,310 @@ export default function TherapistDashboard({ userId, onBack }) {
     setExporting(true)
     try {
       const res = await fetch(`${API_URL}/export/clinical-report/${userId}?days=90`)
-      if (!res.ok) throw new Error(`API returned ${res.status}`)
       const data = await res.json()
 
-      // Dynamic-import the PDF generator (code-split chunk)
-      const mod = await import('../generatePDFReport.js')
-      const gen = mod.default || mod.generatePDFReport
-      if (typeof gen !== 'function') {
-        throw new Error('PDF module failed to load')
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const pageW = doc.internal.pageSize.getWidth()
+      const margin = 15
+      const contentW = pageW - margin * 2
+      let y = 15
+
+      // ── helpers ──
+      const addPage = () => { doc.addPage(); y = 15 }
+      const checkSpace = (need) => { if (y + need > 275) addPage() }
+      const drawLine = (yy) => { doc.setDrawColor(180); doc.setLineWidth(0.3); doc.line(margin, yy, pageW - margin, yy) }
+
+      const sectionTitle = (title) => {
+        checkSpace(14)
+        doc.setFillColor(33, 37, 68)
+        doc.rect(margin, y - 1, contentW, 9, 'F')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(11)
+        doc.setTextColor(255, 255, 255)
+        doc.text(title, margin + 3, y + 5.5)
+        y += 12
+        doc.setTextColor(40, 40, 40)
       }
-      gen(data)
+
+      const labelValue = (label, value, x, width) => {
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(8.5)
+        doc.setTextColor(110, 110, 110)
+        doc.text(label, x, y)
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(9.5)
+        doc.setTextColor(40, 40, 40)
+        doc.text(String(value ?? 'N/A'), x, y + 4.5)
+      }
+
+      // ── HEADER ──
+      doc.setFillColor(33, 37, 68)
+      doc.rect(0, 0, pageW, 36, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(18)
+      doc.setTextColor(255, 255, 255)
+      doc.text('Hero-Dash Clinical Assessment Report', pageW / 2, 14, { align: 'center' })
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9)
+      doc.setTextColor(200, 200, 220)
+      doc.text('Adaptive Serious Game for Auditory Crisis Training', pageW / 2, 21, { align: 'center' })
+      doc.text(`Generated: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, pageW / 2, 27, { align: 'center' })
+      doc.text(`Report Period: Last 90 days  |  Version ${data.report_version || '2.0'}`, pageW / 2, 32, { align: 'center' })
+      y = 42
+
+      // ── PATIENT INFO ──
+      sectionTitle('1. Patient Information')
+      const pt = data.patient || {}
+      labelValue('Patient ID', pt.user_id, margin, 40)
+      labelValue('Username', pt.username, margin + 45, 40)
+      labelValue('Age Group', pt.age_group, margin + 90, 35)
+      labelValue('Hearing Level', pt.hearing_level, margin + 130, 35)
+      y += 11
+
+      labelValue('Current Level', pt.current_level, margin, 40)
+      labelValue('Total Score', pt.total_score, margin + 45, 40)
+      labelValue('Account Created', pt.created_at ? new Date(pt.created_at).toLocaleDateString() : 'N/A', margin + 90, 50)
+      y += 13
+
+      // ── TRAINING SUMMARY ──
+      sectionTitle('2. Training Summary')
+      const ts = data.training_summary || {}
+      labelValue('Total Sessions', ts.total_sessions, margin, 40)
+      labelValue('Total Attempts', ts.total_attempts, margin + 45, 40)
+      labelValue('Success Rate', ts.success_rate != null ? `${(ts.success_rate * 100).toFixed(1)}%` : 'N/A', margin + 90, 35)
+      labelValue('Avg Reaction Time', ts.avg_reaction_time != null ? `${ts.avg_reaction_time.toFixed(2)}s` : 'N/A', margin + 130, 40)
+      y += 11
+
+      // per-scenario breakdown table
+      if (ts.per_scenario) {
+        checkSpace(40)
+        const scenarioRows = Object.entries(ts.per_scenario).map(([name, s]) => [
+          name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+          s.attempts ?? 0,
+          s.successes ?? 0,
+          s.attempts ? `${((s.successes / s.attempts) * 100).toFixed(1)}%` : '0%',
+          s.avg_rt != null ? `${s.avg_rt.toFixed(2)}s` : '-'
+        ])
+        doc.autoTable({
+          startY: y,
+          head: [['Scenario', 'Attempts', 'Successes', 'Accuracy', 'Avg RT']],
+          body: scenarioRows,
+          theme: 'grid',
+          margin: { left: margin, right: margin },
+          headStyles: { fillColor: [33, 37, 68], fontSize: 8, cellPadding: 2 },
+          bodyStyles: { fontSize: 8, cellPadding: 2 },
+          alternateRowStyles: { fillColor: [245, 245, 250] },
+        })
+        y = doc.lastAutoTable.finalY + 6
+      } else {
+        y += 4
+      }
+
+      // ── SOAP NOTE ──
+      const soap = data.soap_note || {}
+      if (soap.subjective || soap.objective || soap.assessment || soap.plan) {
+        sectionTitle('3. SOAP Clinical Note')
+        const soapSections = [
+          { key: 'subjective', label: 'S — Subjective' },
+          { key: 'objective', label: 'O — Objective' },
+          { key: 'assessment', label: 'A — Assessment' },
+          { key: 'plan', label: 'P — Plan' },
+        ]
+        for (const s of soapSections) {
+          const content = soap[s.key]
+          if (!content) continue
+          checkSpace(16)
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(9)
+          doc.setTextColor(33, 37, 68)
+          doc.text(s.label, margin, y)
+          y += 5
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(8.5)
+          doc.setTextColor(50, 50, 50)
+          const items = Array.isArray(content) ? content : [content]
+          for (const item of items) {
+            const lines = doc.splitTextToSize(`• ${item}`, contentW - 5)
+            checkSpace(lines.length * 4 + 2)
+            doc.text(lines, margin + 3, y)
+            y += lines.length * 4 + 1
+          }
+          y += 2
+        }
+      }
+
+      // ── BKT SKILL MASTERY ──
+      const bkt = data.bkt_skills || {}
+      const bktSkills = bkt.skills || bkt
+      if (Object.keys(bktSkills).length > 0) {
+        sectionTitle('4. Bayesian Knowledge Tracing — Skill Mastery')
+        const bktRows = Object.entries(bktSkills).map(([skill, d]) => {
+          const pKnow = d?.p_know ?? d?.p_learned ?? 0
+          return [
+            skill.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+            `${(pKnow * 100).toFixed(1)}%`,
+            d?.total_attempts ?? '-',
+            pKnow >= 0.95 ? 'Mastered' : pKnow >= 0.8 ? 'Proficient' : pKnow >= 0.6 ? 'Developing' : 'Emerging',
+          ]
+        })
+        doc.autoTable({
+          startY: y,
+          head: [['Auditory Skill', 'P(Learned)', 'Attempts', 'Status']],
+          body: bktRows,
+          theme: 'grid',
+          margin: { left: margin, right: margin },
+          headStyles: { fillColor: [33, 37, 68], fontSize: 8, cellPadding: 2 },
+          bodyStyles: { fontSize: 8, cellPadding: 2 },
+          alternateRowStyles: { fillColor: [245, 245, 250] },
+          didParseCell: (hookData) => {
+            if (hookData.section === 'body' && hookData.column.index === 3) {
+              const v = hookData.cell.raw
+              if (v === 'Mastered') hookData.cell.styles.textColor = [39, 174, 96]
+              else if (v === 'Proficient') hookData.cell.styles.textColor = [41, 128, 185]
+              else if (v === 'Emerging') hookData.cell.styles.textColor = [192, 57, 43]
+            }
+          }
+        })
+        y = doc.lastAutoTable.finalY + 6
+        if (bkt.overall_mastery != null) {
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(9)
+          doc.setTextColor(33, 37, 68)
+          doc.text(`Overall Mastery: ${(bkt.overall_mastery * 100).toFixed(1)}% — ${bkt.mastery_label || ''}`, margin, y)
+          y += 8
+        }
+      }
+
+      // ── IRT ABILITY ESTIMATE ──
+      const irt = data.irt_ability || {}
+      if (irt.theta != null) {
+        sectionTitle('5. Item Response Theory — Ability Estimate (2PL)')
+        labelValue('Ability (theta)', irt.theta?.toFixed(3), margin, 40)
+        labelValue('Std Error', irt.se < 900 ? irt.se?.toFixed(3) : 'N/A', margin + 45, 35)
+        labelValue('Classification', irt.ability_label || 'N/A', margin + 85, 40)
+        labelValue('Percentile', irt.percentile_estimate ? `${irt.percentile_estimate}th` : 'N/A', margin + 130, 35)
+        y += 11
+        if (irt.confidence_interval) {
+          labelValue('95% Confidence Interval', `[${irt.confidence_interval[0]?.toFixed(3)}, ${irt.confidence_interval[1]?.toFixed(3)}]`, margin, 80)
+          y += 11
+        }
+      }
+
+      // ── IRT GROWTH TRAJECTORY ──
+      const traj = data.irt_growth_trajectory || []
+      if (traj.length > 1) {
+        checkSpace(30)
+        doc.setFont('helvetica', 'italic')
+        doc.setFontSize(8)
+        doc.setTextColor(100, 100, 100)
+        doc.text('Ability Growth Trajectory (theta over responses):', margin, y)
+        y += 5
+        const trajRows = traj.map((p, i) => [
+          `#${i + 1}`,
+          p.theta?.toFixed(3) ?? '-',
+          p.se?.toFixed(3) ?? '-',
+          p.num_responses ?? '-'
+        ])
+        doc.autoTable({
+          startY: y,
+          head: [['Point', 'Theta', 'SE', 'Responses']],
+          body: trajRows,
+          theme: 'grid',
+          margin: { left: margin, right: margin },
+          headStyles: { fillColor: [33, 37, 68], fontSize: 7.5, cellPadding: 1.5 },
+          bodyStyles: { fontSize: 7.5, cellPadding: 1.5 },
+          alternateRowStyles: { fillColor: [245, 245, 250] },
+          tableWidth: contentW * 0.5,
+        })
+        y = doc.lastAutoTable.finalY + 6
+      }
+
+      // ── PRE/POST COMPARISON ──
+      const comp = data.pre_post_comparison
+      if (comp && !comp.error) {
+        sectionTitle('6. Pre/Post Intervention Comparison')
+        labelValue('Baseline Accuracy', comp.baseline?.overall_accuracy != null ? `${(comp.baseline.overall_accuracy * 100).toFixed(1)}%` : 'N/A', margin, 45)
+        labelValue('Post-Test Accuracy', comp.post_test?.overall_accuracy != null ? `${(comp.post_test.overall_accuracy * 100).toFixed(1)}%` : 'N/A', margin + 50, 45)
+        labelValue("Cohen's d", comp.effect_size?.cohens_d?.toFixed(3) ?? 'N/A', margin + 100, 35)
+        labelValue('p-value', comp.statistical_significance?.p_value?.toFixed(4) ?? 'N/A', margin + 140, 35)
+        y += 11
+        if (comp.effect_size?.interpretation) {
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(8.5)
+          doc.setTextColor(50, 50, 50)
+          doc.text(`Effect Size Interpretation: ${comp.effect_size.interpretation}`, margin, y)
+          y += 6
+        }
+      }
+
+      // ── PSYCHOMETRIC VALIDITY ──
+      const psych = data.psychometric_validity || {}
+      if (psych.cronbachs_alpha != null) {
+        sectionTitle('7. Psychometric Validity')
+        const psychRows = [
+          ["Cronbach's Alpha", psych.cronbachs_alpha?.toFixed(3) ?? '-', '>= 0.70', psych.cronbachs_alpha >= 0.7 ? 'Acceptable' : 'Below threshold'],
+          ['Test-Retest r', psych.test_retest_reliability?.correlation?.toFixed(3) ?? '-', '>= 0.70', (psych.test_retest_reliability?.correlation ?? 0) >= 0.7 ? 'Acceptable' : 'Insufficient'],
+          ['SEM', psych.standard_error_of_measurement?.sem?.toFixed(3) ?? '-', '-', 'Measurement precision'],
+          ['MDC 95%', psych.minimal_detectable_change?.mdc_95?.toFixed(3) ?? '-', '-', 'Min detectable change'],
+        ]
+        doc.autoTable({
+          startY: y,
+          head: [['Metric', 'Value', 'Criterion', 'Interpretation']],
+          body: psychRows,
+          theme: 'grid',
+          margin: { left: margin, right: margin },
+          headStyles: { fillColor: [33, 37, 68], fontSize: 8, cellPadding: 2 },
+          bodyStyles: { fontSize: 8, cellPadding: 2 },
+          alternateRowStyles: { fillColor: [245, 245, 250] },
+        })
+        y = doc.lastAutoTable.finalY + 6
+      }
+
+      // ── CLINICAL RECOMMENDATIONS ──
+      const recs = data.clinical_recommendations || []
+      if (recs.length > 0) {
+        sectionTitle('8. Clinical Recommendations')
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(8.5)
+        doc.setTextColor(50, 50, 50)
+        for (const rec of recs) {
+          const lines = doc.splitTextToSize(`• ${rec}`, contentW - 5)
+          checkSpace(lines.length * 4 + 2)
+          doc.text(lines, margin + 3, y)
+          y += lines.length * 4 + 2
+        }
+      }
+
+      // ── DISCLAIMER ──
+      checkSpace(20)
+      drawLine(y)
+      y += 5
+      doc.setFont('helvetica', 'italic')
+      doc.setFontSize(7)
+      doc.setTextColor(130, 130, 130)
+      const disclaimer = data.disclaimer || 'This report is generated by an automated system and should be interpreted by a qualified audiologist or speech-language pathologist.'
+      const discLines = doc.splitTextToSize(disclaimer, contentW)
+      doc.text(discLines, margin, y)
+      y += discLines.length * 3.5 + 3
+
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(7)
+      doc.text('Hero-Dash Adaptive Serious Game | ICTICM 2026 Research Project', pageW / 2, y, { align: 'center' })
+
+      // ── PAGE NUMBERS ──
+      const totalPages = doc.internal.getNumberOfPages()
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i)
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(7)
+        doc.setTextColor(150, 150, 150)
+        doc.text(`Page ${i} of ${totalPages}`, pageW / 2, 290, { align: 'center' })
+      }
+
+      doc.save(`Hero-Dash_Clinical_Report_${userId}_${new Date().toISOString().split('T')[0]}.pdf`)
     } catch (err) {
-      console.error('PDF export error:', err)
-      alert('PDF export failed: ' + err.message + '\n\nPlease hard-refresh the page (Ctrl+Shift+R) and try again.')
+      console.error('PDF export failed:', err)
+      alert('Export failed. Check connection.')
     } finally {
       setExporting(false)
     }
@@ -524,7 +817,7 @@ export default function TherapistDashboard({ userId, onBack }) {
           <button onClick={handleExport} disabled={exporting} style={{
             padding: '8px 16px', background: 'rgba(46,204,113,0.3)', border: '1px solid #2ecc71',
             borderRadius: '10px', color: 'white', cursor: exporting ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '0.85rem'
-          }}>{exporting ? '⏳ Generating...' : '📄 Export PDF'}</button>
+          }}>{exporting ? '⏳' : '�'} Export Report</button>
           <button onClick={fetchAllData} style={{
             padding: '8px 16px', background: 'rgba(52,152,219,0.3)', border: '1px solid #3498db',
             borderRadius: '10px', color: 'white', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem'
