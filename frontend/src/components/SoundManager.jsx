@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { useGameStore } from '../store'
+import { devLog, devWarn } from '../config'
 
 export default function SoundManager() {
   const { emergencyActive, emergencyType, gameStarted, level, isPaused } = useGameStore()
@@ -12,9 +13,9 @@ export default function SoundManager() {
 
   // Initialize Audio objects once
   useEffect(() => {
-    console.log('🎵 Initializing audio objects...')
+    devLog(' Initializing audio objects...')
     
-    // Create audio instances — crisis/disaster sounds only
+    // Create audio instances  --  crisis/disaster sounds only
     audioRefs.current = {
       tsunami_siren: new Audio('/sounds/tsunami_siren.mp3'),
       earthquake_alarm: new Audio('/sounds/earthquake_alarm.mp3'),
@@ -38,16 +39,16 @@ export default function SoundManager() {
       audio.preload = 'auto'
       
       audio.addEventListener('loadeddata', () => {
-        console.log(`✅ Loaded: ${name} (duration: ${audio.duration}s)`)
+        devLog(` Loaded: ${name} (duration: ${audio.duration}s)`)
       })
       
       audio.addEventListener('error', (e) => {
-        console.error(`❌ Error loading ${name}:`, audio.error)
-        console.error(`   Error code: ${audio.error?.code}, message: ${audio.error?.message}`)
+        devWarn(` Error loading ${name}:`, audio.error)
+        devWarn(`   Error code: ${audio.error?.code}, message: ${audio.error?.message}`)
       })
       
       audio.addEventListener('canplaythrough', () => {
-        console.log(`▶️ Can play through: ${name}`)
+        devLog(` Can play through: ${name}`)
       })
       
       // Start loading
@@ -55,7 +56,7 @@ export default function SoundManager() {
     })
 
     setAudioInitialized(true)
-    console.log('🎵 Audio initialization complete')
+    devLog(' Audio initialization complete')
 
     return () => {
       // Cleanup on unmount
@@ -76,7 +77,7 @@ export default function SoundManager() {
     audioRefs.current.engine.volume = 0.2
   }, [level])
 
-  // Handle Pause/Resume — mute all audio when paused, restore when resumed
+  // Handle Pause/Resume  --  mute all audio when paused, restore when resumed
   useEffect(() => {
     if (!soundEnabled) return
     const allAudio = Object.values(audioRefs.current)
@@ -88,7 +89,7 @@ export default function SoundManager() {
           audio.pause()
         }
       })
-      console.log('⏸️ All sounds paused')
+      devLog(' All sounds paused')
     } else {
       // Resume audio that was playing before pause
       allAudio.forEach(audio => {
@@ -97,11 +98,11 @@ export default function SoundManager() {
           audio.dataset.wasPlaying = ''
         }
       })
-      console.log('▶️ Sounds resumed')
+      devLog(' Sounds resumed')
     }
   }, [isPaused, soundEnabled])
 
-  // Handle Game Stop — stop all audio when game ends
+  // Handle Game Stop  --  stop all audio when game ends
   useEffect(() => {
     if (!gameStarted) {
       Object.values(audioRefs.current).forEach(audio => {
@@ -109,58 +110,58 @@ export default function SoundManager() {
         audio.currentTime = 0
         audio.dataset.wasPlaying = ''
       })
-      console.log('🛑 All sounds stopped — game ended')
+      devLog(' All sounds stopped  game ended')
     }
   }, [gameStarted])
 
   // Handle Game Start (Ambience)
   useEffect(() => {
-    console.log(`🎮 Game Started Effect - gameStarted: ${gameStarted}, soundEnabled: ${soundEnabled}`)
-    console.log(`   Audio refs available: ${!!audioRefs.current.cityAmbience}`)
+    devLog(` Game Started Effect - gameStarted: ${gameStarted}, soundEnabled: ${soundEnabled}`)
+    devLog(`   Audio refs available: ${!!audioRefs.current.cityAmbience}`)
     
     if (gameStarted && soundEnabled && audioRefs.current.cityAmbience) {
       const playAudio = async () => {
         try {
-          console.log('🎵 Attempting to play background ambience sounds...')
+          devLog(' Attempting to play background ambience sounds...')
           
           // Check if already playing
           if (!audioRefs.current.cityAmbience.paused) {
-            console.log('✅ City ambience already playing')
+            devLog(' City ambience already playing')
           } else {
             audioRefs.current.cityAmbience.volume = 0.3
             await audioRefs.current.cityAmbience.play()
-            console.log("✅ City ambience NOW playing")
+            devLog(" City ambience NOW playing")
           }
           
           if (!audioRefs.current.engine.paused) {
-            console.log('✅ Engine sound already playing')
+            devLog(' Engine sound already playing')
           } else {
             audioRefs.current.engine.volume = 0.2
             await audioRefs.current.engine.play()
-            console.log("✅ Engine sound NOW playing")
+            devLog(" Engine sound NOW playing")
           }
         } catch (e) {
-          console.error("❌ Background audio play failed:", e.message, e.name)
+          devWarn(" Background audio play failed:", e.message, e.name)
         }
       }
       playAudio()
     } else {
-      console.log('⏸️ Not playing background sounds - conditions not met')
-      console.log(`   gameStarted: ${gameStarted}, soundEnabled: ${soundEnabled}, audioRefs: ${!!audioRefs.current.cityAmbience}`)
+      devLog(' Not playing background sounds - conditions not met')
+      devLog(`   gameStarted: ${gameStarted}, soundEnabled: ${soundEnabled}, audioRefs: ${!!audioRefs.current.cityAmbience}`)
     }
   }, [gameStarted, soundEnabled])
 
   // Handle Emergency Sirens
   useEffect(() => {
-    console.log(`🚨 Emergency Effect Triggered!`)
-    console.log(`   - emergencyActive: ${emergencyActive}`)
-    console.log(`   - emergencyType: ${emergencyType}`)
-    console.log(`   - soundEnabled: ${soundEnabled}`)
-    console.log(`   - gameStarted: ${gameStarted}`)
-    console.log(`   - audioRefs ready: ${!!audioRefs.current.tsunami_siren}`)
+    devLog(` Emergency Effect Triggered!`)
+    devLog(`   - emergencyActive: ${emergencyActive}`)
+    devLog(`   - emergencyType: ${emergencyType}`)
+    devLog(`   - soundEnabled: ${soundEnabled}`)
+    devLog(`   - gameStarted: ${gameStarted}`)
+    devLog(`   - audioRefs ready: ${!!audioRefs.current.tsunami_siren}`)
     
     if (!audioRefs.current.tsunami_siren || !soundEnabled) {
-      console.log('⏸️ Skipping emergency sound - audio not ready or sound disabled')
+      devLog(' Skipping emergency sound - audio not ready or sound disabled')
       return
     }
 
@@ -176,31 +177,31 @@ export default function SoundManager() {
       const playSiren = async () => {
         try {
           let soundToPlay = null
-          console.log(`🎵 EMERGENCY TYPE RECEIVED: "${emergencyType}"`)
+          devLog(` EMERGENCY TYPE RECEIVED: "${emergencyType}"`)
           
           switch (emergencyType) {
             case 'tsunami_siren': 
               soundToPlay = audioRefs.current.tsunami_siren
-              console.log('✅ Selected TSUNAMI_SIREN sound')
+              devLog(' Selected TSUNAMI_SIREN sound')
               break
             case 'earthquake_alarm': 
               soundToPlay = audioRefs.current.earthquake_alarm
-              console.log('✅ Selected EARTHQUAKE_ALARM sound')
+              devLog(' Selected EARTHQUAKE_ALARM sound')
               break
             case 'flood_warning': 
               soundToPlay = audioRefs.current.flood_warning
-              console.log('✅ Selected FLOOD_WARNING sound')
+              devLog(' Selected FLOOD_WARNING sound')
               break
             case 'air_raid_siren': 
               soundToPlay = audioRefs.current.air_raid_siren
-              console.log('✅ Selected AIR_RAID_SIREN sound')
+              devLog(' Selected AIR_RAID_SIREN sound')
               break
             case 'building_fire_alarm': 
               soundToPlay = audioRefs.current.building_fire_alarm
-              console.log('✅ Selected BUILDING_FIRE_ALARM sound')
+              devLog(' Selected BUILDING_FIRE_ALARM sound')
               break
             default:
-              console.warn(`⚠️ UNKNOWN emergency type: "${emergencyType}"`)
+              devWarn(` UNKNOWN emergency type: "${emergencyType}"`)
           }
           
           if (soundToPlay) {
@@ -211,33 +212,33 @@ export default function SoundManager() {
               soundToPlay.currentTime = maxOffset > 0 ? Math.random() * maxOffset : 0
               // Slight pitch variation via playbackRate (0.95 - 1.05) for natural feel
               soundToPlay.playbackRate = 0.95 + Math.random() * 0.10
-              console.log(`🔊 ATTEMPTING TO PLAY: ${emergencyType} (offset: ${soundToPlay.currentTime.toFixed(1)}s, rate: ${soundToPlay.playbackRate.toFixed(2)})`)
+              devLog(` ATTEMPTING TO PLAY: ${emergencyType} (offset: ${soundToPlay.currentTime.toFixed(1)}s, rate: ${soundToPlay.playbackRate.toFixed(2)})`)
               await soundToPlay.play()
-              console.log(`✅ SUCCESS! Now playing: ${emergencyType}`)
+              devLog(` SUCCESS! Now playing: ${emergencyType}`)
           } else {
-              console.log(`⚠️ No sound found for emergency type: ${emergencyType}`)
+              devLog(` No sound found for emergency type: ${emergencyType}`)
           }
         } catch (e) {
-          console.error(`❌ SIREN PLAY FAILED for ${emergencyType}:`, e)
-          console.error('   Error details:', e.message, e.name)
+          devWarn(` SIREN PLAY FAILED for ${emergencyType}:`, e)
+          devWarn('   Error details:', e.message, e.name)
         }
       }
       playSiren()
     } else {
-      console.log(`⏸️ Not playing emergency sound - emergencyActive: ${emergencyActive}, gameStarted: ${gameStarted}`)
+      devLog(` Not playing emergency sound - emergencyActive: ${emergencyActive}, gameStarted: ${gameStarted}`)
     }
   }, [emergencyActive, emergencyType, gameStarted, soundEnabled])
 
   const enableSound = async () => {
-    console.log('🔊 User clicked Enable Sound button')
-    console.log('📊 Current state - gameStarted:', gameStarted, 'audioInitialized:', audioInitialized)
+    devLog(' User clicked Enable Sound button')
+    devLog(' Current state - gameStarted:', gameStarted, 'audioInitialized:', audioInitialized)
     
     setSoundEnabled(true)
     setShowButton(false)
     
     // Simplified unlock process - just try to play/pause each sound
     try {
-      console.log('🔓 Unlocking audio (simplified method)...')
+      devLog(' Unlocking audio (simplified method)...')
       
       // Try unlocking each audio file
       for (const [name, audio] of Object.entries(audioRefs.current)) {
@@ -246,36 +247,36 @@ export default function SoundManager() {
           await audio.play()
           audio.pause()
           audio.currentTime = 0
-          console.log(`✅ Unlocked: ${name}`)
+          devLog(` Unlocked: ${name}`)
         } catch (e) {
-          console.warn(`⚠️ Unlock ${name} failed:`, e.message)
+          devWarn(` Unlock ${name} failed:`, e.message)
           // Continue anyway
         }
       }
       
-      console.log("🎉 Audio unlock completed - sounds ready!")
+      devLog(" Audio unlock completed - sounds ready!")
       
       // Immediately start background sounds if game is running
       if (gameStarted && audioRefs.current.cityAmbience && audioRefs.current.engine) {
         try {
-          console.log('🎵 Starting background sounds immediately...')
+          devLog(' Starting background sounds immediately...')
           audioRefs.current.cityAmbience.volume = 0.3
           audioRefs.current.engine.volume = 0.2
           
           await audioRefs.current.cityAmbience.play()
-          console.log("✅ City ambience started")
+          devLog(" City ambience started")
           
           await audioRefs.current.engine.play()
-          console.log("✅ Engine sound started")
+          devLog(" Engine sound started")
         } catch (bgError) {
-          console.error("❌ Background sounds failed:", bgError.message)
+          devWarn(" Background sounds failed:", bgError.message)
         }
       }
       
       alert("✅ Sound enabled! You should now hear background sounds and emergency sirens.")
       
     } catch (e) {
-      console.error("❌ Unlock error:", e)
+      devWarn(" Unlock error:", e)
       // Don't block - let sounds try to play anyway
       alert("✅ Sound system activated! Sounds will play during the game.")
     }
@@ -327,7 +328,7 @@ export default function SoundManager() {
               e.target.style.background = 'linear-gradient(135deg, #f39c12 0%, #e74c3c 100%)'
             }}
           >
-            🔊 CLICK HERE TO ENABLE SOUND! 🔊
+            🔊 Tap to Start Sound 🔊
           </button>
           <p style={{ 
             color: 'white', 
@@ -337,7 +338,7 @@ export default function SoundManager() {
             fontWeight: 'bold',
             textShadow: '1px 1px 3px rgba(0,0,0,0.8)'
           }}>
-            🎮 Sound is required for this game! 🎮
+            👁️ Visual alerts always work — sound adds more fun!
           </p>
           <p style={{ 
             color: '#f39c12', 
@@ -354,7 +355,7 @@ export default function SoundManager() {
             textAlign: 'center', 
             fontSize: '0.85rem'
           }}>
-            Click the button above to hear emergency sirens
+            You will see and feel all emergency alerts on screen
           </p>
         </div>
       )}
