@@ -761,7 +761,7 @@ export default function TherapistDashboard({ userId, onBack }) {
       doc.save(`Hero-Dash_Clinical_Report_${userId}_${new Date().toISOString().split('T')[0]}.pdf`)
     } catch (err) {
       console.error('PDF export failed:', err)
-      alert('Export failed. Check connection.')
+      alert(`Export failed: ${err.message || err}`)
     } finally {
       setExporting(false)
     }
