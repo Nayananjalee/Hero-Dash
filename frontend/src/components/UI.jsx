@@ -3,7 +3,7 @@ import { useGameStore } from '../store'
 import { FEEDBACK, TOKENS } from '../config'
 
 export default function UI() {
-  const { score, level, feedback, gameStarted, isPaused } = useGameStore()
+  const { score, level, feedback, gameStarted, isPaused, lives, isGameOver } = useGameStore()
   const stopGame = useGameStore((state) => state.stopGame)
   const setPaused = useGameStore((state) => state.setPaused)
   const [showExitConfirm, setShowExitConfirm] = useState(false)
@@ -103,6 +103,22 @@ export default function UI() {
         }}>
           Level: {level}
         </h2>
+        <div style={{
+          fontSize: '2rem',
+          display: 'flex',
+          gap: '4px',
+          marginTop: '5px'
+        }}>
+          {[1, 2, 3].map((i) => (
+            <span key={i} style={{ 
+              opacity: i <= lives ? 1 : 0.25,
+              filter: i <= lives ? 'none' : 'grayscale(1)',
+              transition: 'opacity 0.3s, filter 0.3s'
+            }}>
+              ❤️
+            </span>
+          ))}
+        </div>
       </div>
 
       {/* Controls Hint - Bottom Center (complete guide) */}
@@ -150,6 +166,94 @@ export default function UI() {
           borderRadius: TOKENS.radiusLg,
         }}>
           {feedback.includes('Correct') ? FEEDBACK.success.label : FEEDBACK.failure.label}
+        </div>
+      )}
+
+      {/* Game Over Overlay */}
+      {isGameOver && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(0, 0, 0, 0.92)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 10001,
+          pointerEvents: 'auto'
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #c0392b 0%, #96281B 100%)',
+            padding: '50px 60px',
+            borderRadius: '25px',
+            textAlign: 'center',
+            color: 'white',
+            maxWidth: '500px',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+            animation: 'popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+          }}>
+            <h1 style={{ fontSize: '4rem', margin: '0 0 10px 0' }}>💔 Game Over</h1>
+            <p style={{ fontSize: '1.4rem', margin: '0 0 10px 0', opacity: 0.9 }}>
+              ක්‍රීඩාව අවසානයි
+            </p>
+            <div style={{
+              background: 'rgba(0,0,0,0.3)',
+              borderRadius: '15px',
+              padding: '20px',
+              margin: '20px 0'
+            }}>
+              <p style={{ fontSize: '2rem', margin: '0 0 8px 0', fontWeight: 'bold' }}>🏆 Score: {score}</p>
+              <p style={{ fontSize: '1.3rem', margin: 0, opacity: 0.85 }}>📊 Level: {level}</p>
+            </div>
+            <p style={{ fontSize: '1.1rem', marginBottom: '30px', opacity: 0.8 }}>
+              You used all 3 lives. Try again!
+            </p>
+            <div style={{ display: 'flex', gap: '20px', justifyContent: 'center' }}>
+              <button
+                onClick={() => {
+                  useGameStore.getState().stopGame()
+                  setTimeout(() => useGameStore.getState().startGame(), 100)
+                }}
+                style={{
+                  padding: '18px 50px',
+                  background: '#2ecc71',
+                  border: 'none',
+                  borderRadius: '15px',
+                  color: 'white',
+                  fontSize: '1.5rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
+                  transition: 'transform 0.2s'
+                }}
+                onMouseOver={(e) => e.target.style.transform = 'scale(1.05)'}
+                onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
+              >
+                🔄 Play Again
+              </button>
+              <button
+                onClick={() => useGameStore.getState().stopGame()}
+                style={{
+                  padding: '18px 50px',
+                  background: '#7f8c8d',
+                  border: 'none',
+                  borderRadius: '15px',
+                  color: 'white',
+                  fontSize: '1.5rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  boxShadow: '0 6px 20px rgba(0,0,0,0.3)',
+                  transition: 'transform 0.2s'
+                }}
+                onMouseOver={(e) => e.target.style.transform = 'scale(1.05)'}
+                onMouseOut={(e) => e.target.style.transform = 'scale(1)'}
+              >
+                🚪 Exit
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
