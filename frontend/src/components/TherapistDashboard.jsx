@@ -448,11 +448,19 @@ export default function TherapistDashboard({ userId, onBack }) {
     setExporting(true)
     try {
       const res = await fetch(`${API_URL}/export/clinical-report/${userId}?days=90`)
+      if (!res.ok) throw new Error(`API returned ${res.status}`)
       const data = await res.json()
-      const { default: generatePDFReport } = await import('../generatePDFReport')
-      generatePDFReport(data)
+
+      // Dynamic-import the PDF generator (code-split chunk)
+      const mod = await import('../generatePDFReport.js')
+      const gen = mod.default || mod.generatePDFReport
+      if (typeof gen !== 'function') {
+        throw new Error('PDF module failed to load')
+      }
+      gen(data)
     } catch (err) {
-      alert('Export failed. Check connection.')
+      console.error('PDF export error:', err)
+      alert('PDF export failed: ' + err.message + '\n\nPlease hard-refresh the page (Ctrl+Shift+R) and try again.')
     } finally {
       setExporting(false)
     }
