@@ -16,8 +16,10 @@ export const useGameStore = create((set, get) => ({
   // === Game State ===
   gameStarted: false,
   isPaused: false,
+  isGameOver: false,
   score: 0,
   level: 1,
+  lives: 3,
   
   // === Player State ===
   lane: 0,              // -1: Left, 0: Center, 1: Right
@@ -129,7 +131,7 @@ export const useGameStore = create((set, get) => ({
   /**
    * Initialize game session
    */
-  startGame: () => set({ gameStarted: true, score: 0, level: 1, speedModifier: 1, isPaused: false }),
+  startGame: () => set({ gameStarted: true, score: 0, level: 1, lives: 3, isGameOver: false, speedModifier: 1, isPaused: false }),
   
   /**
    * Stop game session, end analytics session, and reset state
@@ -145,6 +147,8 @@ export const useGameStore = create((set, get) => ({
     set({ 
       gameStarted: false, 
       isPaused: false,
+      isGameOver: false,
+      lives: 3,
       sessionId: null,
       emergencyActive: false,
       emergencyType: null,
@@ -342,6 +346,9 @@ export const useGameStore = create((set, get) => ({
         feedback: 'Correct! 🎉'
       })
     } else {
+      const currentLives = state.lives - 1
+      const gameOver = currentLives <= 0
+      
       set({ 
         emergencyActive: false, 
         emergencyType: null, 
@@ -350,8 +357,20 @@ export const useGameStore = create((set, get) => ({
         emergencyStartTime: null,
         responseLocked: false,
         speedModifier: 1,
-        feedback: 'Missed! ❌'
+        lives: currentLives,
+        isGameOver: gameOver,
+        feedback: gameOver ? null : 'Missed! ❌'
       })
+      
+      if (gameOver) {
+        // End analytics session on game over
+        if (state.sessionId) {
+          fetch(`${API_URL}/analytics/end-session/${state.sessionId}`, {
+            method: 'POST'
+          }).catch(err => devWarn('Failed to end session', err))
+        }
+        return // Skip feedback auto-clear — game over screen takes over
+      }
     }
     
     // Auto-clear feedback (longer for young readers)
