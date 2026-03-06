@@ -10,7 +10,7 @@
  */
 
 import { create } from 'zustand'
-import { API_URL, DISASTER_THEMES, devLog, devWarn, TOKENS } from './config'
+import { API_URL, DISASTER_THEMES, devLog, devWarn, TOKENS, triggerHaptic } from './config'
 
 export const useGameStore = create((set, get) => ({
   // === Game State ===
@@ -240,10 +240,9 @@ export const useGameStore = create((set, get) => ({
     if (type === 'building_fire_alarm') { tLane = -1; tSpeed = null } // Move Left (evacuate building)
 
     // Trigger haptic feedback for hearing-impaired accessibility
-    if ('vibrate' in navigator) {
-      const theme = DISASTER_THEMES[type]
-      navigator.vibrate(theme ? theme.haptic : [200])
-    }
+    // Uses screen-shake fallback on desktop/laptop where vibration is unavailable
+    const theme = DISASTER_THEMES[type]
+    triggerHaptic(theme ? theme.haptic : [200], theme ? theme.glow : 'rgba(255,165,0,0.6)')
 
     set({ 
       emergencyActive: true, 
@@ -281,10 +280,11 @@ export const useGameStore = create((set, get) => ({
     
     devLog(`⏱️ Reaction time: ${reactionTime}s`)
     
-    // Haptic feedback for result
-    if ('vibrate' in navigator) {
-      navigator.vibrate(success ? [100, 50, 100] : [500])
-    }
+    // Haptic feedback for result (screen-shake on desktop)
+    triggerHaptic(
+      success ? [100, 50, 100] : [500],
+      success ? 'rgba(45,198,83,0.6)' : 'rgba(231,76,60,0.6)'
+    )
     
     // Send attempt to backend for ML processing
     if (state.userId) {

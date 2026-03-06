@@ -25,6 +25,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGameStore } from '../store'
+import { triggerHaptic } from '../config'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -337,10 +338,11 @@ export default function AssessmentMode({ userId, assessmentType = 'baseline', on
     const reactionTime = trialStartRef.current ? (performance.now() - trialStartRef.current) / 1000 : 8.0
     const success = responseAction === theme.targetAction
 
-    // Haptic feedback
-    if ('vibrate' in navigator) {
-      navigator.vibrate(success ? [100, 50, 100] : [500])
-    }
+    // Haptic feedback (screen-shake on desktop)
+    triggerHaptic(
+      success ? [100, 50, 100] : [500],
+      success ? 'rgba(45,198,83,0.6)' : 'rgba(231,76,60,0.6)'
+    )
 
     // Record trial to backend (fire-and-forget)
     fetch(`${API_URL}/assessment/record-trial/${assessmentIdRef.current}`, {

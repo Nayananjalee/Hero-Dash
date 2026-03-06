@@ -185,3 +185,71 @@ export const TOKENS = {
   glassBg: 'rgba(255,255,255,0.07)',
   glassBorder: 'rgba(255,255,255,0.10)',
 }
+
+// ─── HAPTIC / VISUAL FEEDBACK ──────────────────────────
+// Desktop/laptop PCs don't support navigator.vibrate().
+// This utility provides a visual screen-shake + border flash fallback
+// so hearing-impaired children still get tactile-equivalent feedback.
+
+let _shakeStyleInjected = false
+function _injectShakeCSS() {
+  if (_shakeStyleInjected) return
+  _shakeStyleInjected = true
+  const style = document.createElement('style')
+  style.textContent = `
+    @keyframes hd-shake {
+      0%, 100% { transform: translate(0, 0); }
+      10% { transform: translate(-6px, -3px); }
+      20% { transform: translate(5px, 4px); }
+      30% { transform: translate(-4px, 2px); }
+      40% { transform: translate(6px, -4px); }
+      50% { transform: translate(-3px, 5px); }
+      60% { transform: translate(4px, -2px); }
+      70% { transform: translate(-5px, 3px); }
+      80% { transform: translate(3px, -3px); }
+      90% { transform: translate(-2px, 4px); }
+    }
+    @keyframes hd-flash-border {
+      0%, 100% { box-shadow: inset 0 0 0 0 transparent; }
+      20%, 60% { box-shadow: inset 0 0 40px 8px var(--hd-flash-color, rgba(255,165,0,0.6)); }
+    }
+    .hd-shaking {
+      animation: hd-shake var(--hd-shake-duration, 0.5s) ease-in-out;
+    }
+    .hd-flash {
+      animation: hd-flash-border var(--hd-shake-duration, 0.5s) ease-in-out;
+    }
+  `
+  document.head.appendChild(style)
+}
+
+/**
+ * Trigger haptic feedback with desktop fallback.
+ * On mobile: uses navigator.vibrate() with the given pattern.
+ * On desktop: shakes the screen + flashes an orange/green border.
+ * @param {number[]} pattern - Vibration pattern [vibrate, pause, vibrate, ...]
+ * @param {string} [flashColor] - CSS color for the border flash (default: orange)
+ */
+export function triggerHaptic(pattern = [200], flashColor = 'rgba(255,165,0,0.6)') {
+  // Try native vibration first (mobile devices)
+  if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+    try {
+      const vibrated = navigator.vibrate(pattern)
+      if (vibrated) return  // Vibration succeeded — done
+    } catch (_) { /* some browsers throw instead of returning false */ }
+  }
+
+  // Desktop fallback: visual screen shake + border flash
+  _injectShakeCSS()
+  const totalMs = pattern.reduce((a, b) => a + b, 0)
+  const duration = Math.max(300, Math.min(totalMs, 1500))
+
+  const el = document.documentElement
+  el.style.setProperty('--hd-shake-duration', `${duration}ms`)
+  el.style.setProperty('--hd-flash-color', flashColor)
+  el.classList.add('hd-shaking', 'hd-flash')
+
+  setTimeout(() => {
+    el.classList.remove('hd-shaking', 'hd-flash')
+  }, duration)
+}

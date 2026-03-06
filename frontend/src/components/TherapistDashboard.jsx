@@ -468,8 +468,17 @@ export default function TherapistDashboard({ userId, onBack }) {
       <div style={{
         position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
         background: 'linear-gradient(135deg, #1a1a2e, #16213e)', zIndex: 1000,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px'
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px',
+        overflowY: 'auto'
       }}>
+        {/* Sticky close button — always visible */}
+        <button onClick={() => setShowAudiogram(false)} style={{
+          position: 'fixed', top: '15px', right: '20px', zIndex: 1002,
+          background: 'rgba(231,76,60,0.85)', border: '2px solid white', borderRadius: '50%',
+          width: '44px', height: '44px', color: 'white', cursor: 'pointer', fontSize: '1.4rem',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 4px 15px rgba(0,0,0,0.4)'
+        }}>✕</button>
         <AudiogramInput 
           userId={userId} 
           onSave={() => setShowAudiogram(false)} 
