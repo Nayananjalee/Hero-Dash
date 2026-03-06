@@ -251,7 +251,7 @@ export default function EmergencyOverlay() {
               <div>
                 <h3 style={{ fontSize: '1.2rem', margin: 0, textShadow: '2px 2px 4px #000' }}>Air Raid</h3>
                 <h4 style={{ fontSize: '0.9rem', margin: '4px 0', color: VEHICLE_THEMES.air_raid_siren.secondary }}>මැද (Center)</h4>
-                <p style={{ color: VEHICLE_THEMES.air_raid_siren.primary, fontWeight: 'bold', margin: 0 }}>⏺️ Stay</p>
+                <p style={{ color: VEHICLE_THEMES.air_raid_siren.primary, fontWeight: 'bold', margin: 0 }}>⬆️ Arrow Up</p>
               </div>
             </div>
           </motion.div>
