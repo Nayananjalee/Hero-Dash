@@ -23,7 +23,7 @@ import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import AudiogramInput from './AudiogramInput'
 import jsPDF from 'jspdf'
-import 'jspdf-autotable'
+import autoTable from 'jspdf-autotable'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -541,7 +541,7 @@ export default function TherapistDashboard({ userId, onBack }) {
           s.attempts ? `${((s.successes / s.attempts) * 100).toFixed(1)}%` : '0%',
           s.avg_rt != null ? `${s.avg_rt.toFixed(2)}s` : '-'
         ])
-        doc.autoTable({
+        autoTable(doc, {
           startY: y,
           head: [['Scenario', 'Attempts', 'Successes', 'Accuracy', 'Avg RT']],
           body: scenarioRows,
@@ -603,7 +603,7 @@ export default function TherapistDashboard({ userId, onBack }) {
             pKnow >= 0.95 ? 'Mastered' : pKnow >= 0.8 ? 'Proficient' : pKnow >= 0.6 ? 'Developing' : 'Emerging',
           ]
         })
-        doc.autoTable({
+        autoTable(doc, {
           startY: y,
           head: [['Auditory Skill', 'P(Learned)', 'Attempts', 'Status']],
           body: bktRows,
@@ -661,7 +661,7 @@ export default function TherapistDashboard({ userId, onBack }) {
           p.se?.toFixed(3) ?? '-',
           p.num_responses ?? '-'
         ])
-        doc.autoTable({
+        autoTable(doc, {
           startY: y,
           head: [['Point', 'Theta', 'SE', 'Responses']],
           body: trajRows,
@@ -703,7 +703,7 @@ export default function TherapistDashboard({ userId, onBack }) {
           ['SEM', psych.standard_error_of_measurement?.sem?.toFixed(3) ?? '-', '-', 'Measurement precision'],
           ['MDC 95%', psych.minimal_detectable_change?.mdc_95?.toFixed(3) ?? '-', '-', 'Min detectable change'],
         ]
-        doc.autoTable({
+        autoTable(doc, {
           startY: y,
           head: [['Metric', 'Value', 'Criterion', 'Interpretation']],
           body: psychRows,
