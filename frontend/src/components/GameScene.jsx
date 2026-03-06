@@ -220,9 +220,17 @@ function Car() {
       if (isPaused) return
       if (e.key === 'ArrowLeft' || e.key === 'a') setLane(Math.max(-1, lane - 1))
       if (e.key === 'ArrowRight' || e.key === 'd') setLane(Math.min(1, lane + 1))
-      if (e.key === 'ArrowUp' || e.key === 'w') setSpeed(1)
+      if (e.key === 'ArrowUp' || e.key === 'w') {
+        // ArrowUp also confirms "Stay Center" for air_raid_siren
+        const state = useGameStore.getState()
+        if (state.emergencyActive && state.targetLane === 0 && !state.responseLocked) {
+          setLane(lane) // Re-trigger lane check at current position
+        } else {
+          setSpeed(1)
+        }
+      }
       if (e.key === 'ArrowDown') setSpeed(0)
-      if (e.key === 's' || e.key === ' ') setSpeed(0.5)
+      if (e.key === 's' || e.key === 'S' || e.key === ' ') setSpeed(0.5)
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)

@@ -139,6 +139,38 @@ function App() {
     }
   }, [gameStarted, userId])
 
+  // End session reliably on browser close / tab switch / navigation away
+  useEffect(() => {
+    const endSessionBeacon = () => {
+      const sid = useGameStore.getState().sessionId
+      if (sid) {
+        // sendBeacon is reliable even during page unload
+        navigator.sendBeacon(
+          `${API_URL}/analytics/end-session/${sid}`,
+          new Blob([], { type: 'application/json' })
+        )
+      }
+    }
+
+    const handleBeforeUnload = () => {
+      endSessionBeacon()
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        endSessionBeacon()
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [])
+
   return (
     <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
       {/* UI Overlays */}

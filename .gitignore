@@ -75,3 +75,13 @@ htmlcov/
 # Logs
 logs/
 *.log
+RESEARCH_FOUNDATION.md
+RESEARCH_PAPER.md
+SYSTEM_DOCUMENTATION.md
+README.md
+IEEE_CONFERENCE_PAPER.md
+fig_architecture.png
+generate_architecture.py
+ICTICM_2026_PAPER.md
+ICTICM_2026_PAPER.tex
+README.md

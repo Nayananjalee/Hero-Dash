@@ -38,6 +38,26 @@ print(f"🗄️  Database: {db_display}")
 models.Base.metadata.create_all(bind=database.engine)
 print("✅ Database tables initialized")
 
+# Seed IRT item parameters if table is empty
+_seed_db = database.SessionLocal()
+try:
+    if _seed_db.query(models.IRTItemParameters).count() == 0:
+        from irt_model import DEFAULT_ITEM_PARAMS
+        for (scenario, noise_bin), (disc, diff) in DEFAULT_ITEM_PARAMS.items():
+            _seed_db.add(models.IRTItemParameters(
+                scenario_type=scenario,
+                noise_level_bin=noise_bin,
+                discrimination=disc,
+                difficulty=diff,
+                num_responses=0
+            ))
+        _seed_db.commit()
+        print("✅ IRT item parameters seeded (15 items)")
+    else:
+        print("ℹ️  IRT item parameters already exist")
+finally:
+    _seed_db.close()
+
 app = FastAPI()
 
 # Get allowed origins from environment variable or use defaults
@@ -458,7 +478,7 @@ def end_session(session_id: int, db: Session = Depends(get_db)):
         
         reaction_times = [a.reaction_time for a in attempts if a.reaction_time > 0]
         if reaction_times:
-            session.response_consistency = 1 / (1 + np.var(reaction_times))
+            session.response_consistency = float(1 / (1 + np.var(reaction_times)))
     
     db.commit()
     

@@ -36,6 +36,35 @@ def create_user(db: Session, user: schemas.UserCreate):
     # Initialize BKT skill states for new user
     bkt.initialize_bkt_states(db, db_user.id)
     
+    # Initialize UserLearningProfile (Thompson Sampling priors)
+    import json
+    profile = models.UserLearningProfile(
+        user_id=db_user.id,
+        bandit_params=json.dumps({
+            "tsunami_siren": {"alpha": 1, "beta": 1},
+            "earthquake_alarm": {"alpha": 1, "beta": 1},
+            "flood_warning": {"alpha": 1, "beta": 1},
+            "air_raid_siren": {"alpha": 1, "beta": 1},
+            "building_fire_alarm": {"alpha": 1, "beta": 1}
+        })
+    )
+    db.add(profile)
+    
+    # Initialize SkillMemoryState (SM-2 spaced repetition) for each scenario
+    ALL_SCENARIOS = ["tsunami_siren", "earthquake_alarm", "flood_warning", "air_raid_siren", "building_fire_alarm"]
+    for scenario in ALL_SCENARIOS:
+        memory = models.SkillMemoryState(
+            user_id=db_user.id,
+            scenario_type=scenario,
+            repetition_number=0,
+            easiness_factor=2.5,
+            interval_days=0.0,
+            memory_strength=0.0
+        )
+        db.add(memory)
+    
+    db.commit()
+    
     return db_user
 
 # ============================================================================
