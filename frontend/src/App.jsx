@@ -32,6 +32,7 @@ function App() {
   const showAssessmentMode = useGameStore((state) => state.showAssessmentMode)
   const assessmentTypeToRun = useGameStore((state) => state.assessmentTypeToRun)
   const showAchievements = useGameStore((state) => state.showAchievements)
+  const isGameOver = useGameStore((state) => state.isGameOver)
   const clearTimeoutId = useRef(null) // Store timeout ID for clearing
   const emergencyRemainingMs = useRef(null) // Track remaining ms when paused
   const emergencyDurationMs = 8000 // 8 second emergency window
@@ -81,7 +82,7 @@ function App() {
 
   // Poll backend for personalized scenario recommendations
   useEffect(() => {
-    if (!gameStarted || !userId || isPaused) {
+    if (!gameStarted || !userId || isPaused || isGameOver) {
       // --- PAUSING: save remaining time for the active emergency ---
       if (isPaused && clearTimeoutId.current && emergencyRemainingMs.current != null) {
         const elapsed = performance.now() - (clearTimeoutId._startedAt || 0)
@@ -113,7 +114,7 @@ function App() {
       clearInterval(interval)
       // Don't clear the emergency timeout here — handled above on pause
     }
-  }, [gameStarted, userId, isPaused, triggerEmergency])
+  }, [gameStarted, userId, isPaused, isGameOver, triggerEmergency])
   
   // Clear auto-clear timeout when emergency is completed
   useEffect(() => {
