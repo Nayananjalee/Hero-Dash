@@ -18,71 +18,15 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useGameStore } from '../store'
 import { motion, AnimatePresence } from 'framer-motion'
+import { DISASTER_THEMES } from '../config'
 
-// Crisis-specific theme colors (high contrast, colorblind-safe palette)
-// Each sound maps to exactly ONE unique action/key
-const VEHICLE_THEMES = {
-  tsunami_siren: {
-    primary: '#0077B6',
-    secondary: '#90E0EF',
-    glow: 'rgba(0, 119, 182, 0.6)',
-    icon: '🌊',
-    label: 'Tsunami Warning',
-    sinhala: 'සුනාමි අනතුරු ඇඟවීම',
-    action: 'Move Right ➡️',
-    actionSinhala: 'දකුණට යන්න',
-    borderPattern: [300, 100, 300, 100, 300, 100, 300],
-    direction: 'right'
-  },
-  earthquake_alarm: {
-    primary: '#8B4513',
-    secondary: '#D2691E',
-    glow: 'rgba(139, 69, 19, 0.6)',
-    icon: '🏚️',
-    label: 'Earthquake',
-    sinhala: 'භූමිකම්පා අනතුරු ඇඟවීම',
-    action: 'STOP ⬇️',
-    actionSinhala: 'නවතින්න',
-    borderPattern: [500, 100, 500, 100, 500],
-    direction: 'stop'
-  },
-  flood_warning: {
-    primary: '#1E90FF',
-    secondary: '#87CEEB',
-    glow: 'rgba(30, 144, 255, 0.6)',
-    icon: '🌊',
-    label: 'Flood Warning',
-    sinhala: 'ගංවතුර අනතුරු ඇඟවීම',
-    action: 'Find Safe Place 🏠 (S)',
-    actionSinhala: 'ආරක්ෂිත ස්ථානයක් සොයන්න',
-    borderPattern: [300, 200, 300, 200, 300, 200],
-    direction: 'slow'
-  },
-  air_raid_siren: {
-    primary: '#800080',
-    secondary: '#DA70D6',
-    glow: 'rgba(128, 0, 128, 0.6)',
-    icon: '🚨',
-    label: 'Air Raid',
-    sinhala: 'ගුවන් ප්‍රහාර අනතුරු ඇඟවීම',
-    action: 'Stay Center ⏺️',
-    actionSinhala: 'මැද රැඳී සිටින්න',
-    borderPattern: [400, 100, 400, 100, 400, 100],
-    direction: 'center'
-  },
-  building_fire_alarm: {
-    primary: '#DC143C',
-    secondary: '#FF6B6B',
-    glow: 'rgba(220, 20, 60, 0.6)',
-    icon: '🔥',
-    label: 'Building Fire',
-    sinhala: 'ගොඩනැගිලි ගිනි අනතුරු ඇඟවීම',
-    action: 'Move Left ⬅️',
-    actionSinhala: 'වමට යන්න',
-    borderPattern: [150, 75, 150, 75, 150, 75, 150],
-    direction: 'left'
-  }
-}
+// Use shared disaster themes (colorblind-safe):
+// - Tsunami: deep blue #005F99   🌊
+// - Earthquake: earth brown #7A4419  🏚️
+// - Flood: teal-green #00897B   🌧️  (distinct from tsunami)
+// - Air Raid: violet #7B2D8E    🚨
+// - Fire: deep red #C62828      🔥
+const VEHICLE_THEMES = DISASTER_THEMES
 
 // Countdown Timer Component — pause-aware
 function CountdownBar({ duration = 8 }) {
@@ -241,7 +185,9 @@ export default function EmergencyOverlay() {
               style={{ fontSize: '4.5rem' }}
             >🔥</motion.span>
             <h3 style={{ fontSize: '1.4rem', margin: '8px 0', textShadow: '2px 2px 4px #000' }}>Building Fire</h3>
-            <h4 style={{ fontSize: '1rem', margin: 0, color: VEHICLE_THEMES.building_fire_alarm.secondary }}>වමට (Left)</h4>
+            <h4 style={{ fontSize: '1rem', margin: 0, color: VEHICLE_THEMES.building_fire_alarm.secondary }}>
+              ⬅️ වමට (Left)
+            </h4>
             <motion.p 
               animate={{ x: [-5, -15, -5] }} 
               transition={{ duration: 0.8, repeat: Infinity }}
@@ -270,7 +216,9 @@ export default function EmergencyOverlay() {
               style={{ fontSize: '4.5rem' }}
             >🌊</motion.span>
             <h3 style={{ fontSize: '1.4rem', margin: '8px 0', textShadow: '2px 2px 4px #000' }}>Tsunami</h3>
-            <h4 style={{ fontSize: '1rem', margin: 0, color: VEHICLE_THEMES.tsunami_siren.secondary }}>දකුණට (Right)</h4>
+            <h4 style={{ fontSize: '1rem', margin: 0, color: VEHICLE_THEMES.tsunami_siren.secondary }}>
+              ➡️ දකුණට (Right)
+            </h4>
             <motion.p 
               animate={{ x: [5, 15, 5] }} 
               transition={{ duration: 0.8, repeat: Infinity }}
@@ -361,9 +309,11 @@ export default function EmergencyOverlay() {
               animate={emergencyType === 'flood_warning' ? { scale: [1, 1.15, 1] } : {}}
               transition={{ duration: 0.8, repeat: Infinity }}
               style={{ fontSize: '2.8rem' }}
-            >🌊</motion.span>
+            >
+            {VEHICLE_THEMES.flood_warning.icon}
+            </motion.span>
             <h3 style={{ fontSize: '0.95rem', margin: '4px 0', textShadow: '2px 2px 4px #000' }}>Flood</h3>
-            <h4 style={{ fontSize: '0.8rem', margin: 0, color: VEHICLE_THEMES.flood_warning.secondary }}>ආරක්ෂිත (Safe)</h4>
+            <h4 style={{ fontSize: '0.8rem', margin: 0, color: VEHICLE_THEMES.flood_warning.secondary }}>🏠 ආරක්ෂිත (Safe)</h4>
             <p style={{ color: VEHICLE_THEMES.flood_warning.primary, fontWeight: 'bold', margin: '2px 0', fontSize: '0.9rem' }}>Press 'S'</p>
           </motion.div>
 
