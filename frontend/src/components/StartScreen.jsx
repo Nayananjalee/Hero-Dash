@@ -1,54 +1,9 @@
 import React, { useState } from 'react'
 import { useGameStore } from '../store'
 import AnalyticsDashboard from './AnalyticsDashboard'
+import { API_URL, AGE_GROUPS, HEARING_LEVELS, GAME_MODES, devLog, devWarn } from '../config'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const RESEARCH_APP_URL = import.meta.env.VITE_RESEARCH_APP_URL || 'http://localhost:5173'
-
-// ============================================================
-// AGE GROUP DEFINITIONS (Based on Tharanga & Viraj 2023)
-// Maps developmental stages to clinical hearing therapy norms
-// ============================================================
-const AGE_GROUPS = [
-  { value: '5-6', label: '5-6', emoji: '🧒', description: 'Learning new sounds' },
-  { value: '7-8', label: '7-8', emoji: '👦', description: 'Telling sounds apart' },
-  { value: '9-10', label: '9-10', emoji: '🧑', description: 'Listening in noise' },
-  { value: '11-12', label: '11-12', emoji: '👧', description: 'Tricky sound challenges' },
-  { value: '13-14', label: '13-14', emoji: '🧑‍🎓', description: 'Expert listener' }
-]
-
-const HEARING_LEVELS = [
-  { value: 'normal', label: 'Normal', color: '#2ecc71', icon: '🟢' },
-  { value: 'mild', label: 'Mild', detail: '21-40 dB', color: '#f1c40f', icon: '🟡' },
-  { value: 'moderate', label: 'Moderate', detail: '41-55 dB', color: '#e67e22', icon: '🟠' },
-  { value: 'mod_severe', label: 'Mod-Severe', detail: '56-70 dB', color: '#e74c3c', icon: '🔴' },
-  { value: 'severe', label: 'Severe', detail: '71-90 dB', color: '#c0392b', icon: '⭕' },
-  { value: 'profound', label: 'Profound', detail: '>90 dB', color: '#8e44ad', icon: '🟣' }
-]
-
-const GAME_MODES = [
-  { 
-    value: 'audio-visual', 
-    label: '🔊 Audio + Visual', 
-    description: 'Listen and watch — full game experience',
-    color: '#2ecc71',
-    recommended: true
-  },
-  { 
-    value: 'visual-only', 
-    label: '👁️ Visual Only', 
-    description: 'Watch and feel vibrations — no sound needed',
-    color: '#3498db',
-    recommended: false
-  },
-  { 
-    value: 'assessment', 
-    label: '📋 Quick Test', 
-    description: 'Short test to check your progress (20 rounds)',
-    color: '#9b59b6',
-    recommended: false
-  }
-]
 
 // Floating animated particle for background decoration
 function FloatingParticles() {
@@ -77,7 +32,7 @@ function FloatingParticles() {
         .kid-btn:active { transform: scale(0.97) !important; }
       `}</style>
       <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'hidden', zIndex: 0 }}>
-        {['🌊','🏚️','🌊','🚨','🔥','⭐','🎵','🎧','🏥','🔔'].map((emoji, i) => (
+        {['🌊','🏚️','�️','🚨','🔥','⭐','🎵','🎧','🏥','🔔'].map((emoji, i) => (
           <span key={i} style={{
             position: 'absolute',
             fontSize: `${1.2 + Math.random() * 1.2}rem`,
@@ -135,7 +90,7 @@ function DashboardView({ onBack }) {
         setIrtAbility(await irtRes.value.json())
       }
     } catch (error) {
-      console.error('Failed to fetch analytics:', error)
+      devWarn('Failed to fetch analytics:', error)
     } finally {
       setLoading(false)
     }
@@ -295,7 +250,7 @@ export default function StartScreen() {
     const researchUserId = params.get('userId')
     const researchUsername = params.get('username')
     if (researchUserId && researchUsername) {
-      console.log('\ud83d\udd17 Research app user detected:', researchUsername, '(ID:', researchUserId, ')')
+      devLog('\ud83d\udd17 Research app user detected:', researchUsername, '(ID:', researchUserId, ')')
       // Pre-fill name but let user continue through normal step flow
       setName(researchUsername)
     }
@@ -316,7 +271,7 @@ export default function StartScreen() {
     // Unlock audio context
     const unlockAudio = new Audio('/sounds/engine_loop.mp3')
     unlockAudio.volume = 0.1
-    unlockAudio.play().then(() => unlockAudio.pause()).catch(e => console.log("Audio unlock failed", e))
+    unlockAudio.play().then(() => unlockAudio.pause()).catch(e => devLog("Audio unlock failed", e))
 
     // Update global state
     setAgeGroup(ageGroup)
@@ -338,7 +293,7 @@ export default function StartScreen() {
       setUserId(data.id, data.username)
       startGame()
     } catch (error) {
-      console.error("Login failed", error)
+      devWarn("Login failed", error)
       alert("Connection failed. Starting offline mode.")
       setUserId(-1, name || 'offline_player')
       startGame()
@@ -360,7 +315,7 @@ export default function StartScreen() {
       setUserId(data.id, data.username)
       setShowDashboard(true)
     } catch (error) {
-      console.error("Login failed", error)
+      devWarn("Login failed", error)
       alert("Connection failed. Cannot load dashboard.")
     } finally {
       setLoading(false)
