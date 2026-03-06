@@ -163,9 +163,10 @@ export const useGameStore = create((set, get) => ({
   /**
    * Update player lane position and auto-validate if emergency active
    */
-  setLane: (lane) => {
-    devLog(`🚗 Lane changed to: ${lane}`)
-    set({ lane })
+  setLane: (newLane) => {
+    const oldLane = get().lane
+    devLog(`🚗 Lane changed to: ${newLane}`)
+    set({ lane: newLane })
     // Check if correct lane for current emergency
     const state = get()
     if (state.emergencyActive && state.targetLane !== null) {
@@ -176,8 +177,27 @@ export const useGameStore = create((set, get) => ({
       }
       // Lock response on first press
       set({ responseLocked: true })
-      devLog(`🎯 Checking lane target: current=${lane}, target=${state.targetLane}`)
-      if (lane === state.targetLane) {
+
+      // Validate by direction of movement, not just final position.
+      // This fixes the case where car is 2 lanes away from target
+      // (e.g. left lane pressing right only reaches center, not right lane).
+      const direction = newLane - oldLane // >0 = moved right, <0 = moved left, 0 = no movement
+      let isCorrect = false
+      if (newLane === state.targetLane) {
+        // Landed exactly on target (one step away, or already at target)
+        isCorrect = true
+      } else if (state.targetLane === 1 && direction > 0) {
+        // Target is RIGHT and user moved right (correct intent)
+        isCorrect = true
+      } else if (state.targetLane === -1 && direction < 0) {
+        // Target is LEFT and user moved left (correct intent)
+        isCorrect = true
+      }
+
+      devLog(`🎯 Checking lane: old=${oldLane}, new=${newLane}, target=${state.targetLane}, direction=${direction}, correct=${isCorrect}`)
+      if (isCorrect) {
+        // Snap car to the correct target lane position
+        set({ lane: state.targetLane })
         devLog('✅ CORRECT LANE! Completing emergency as success')
         state.completeEmergency(true)
       } else {
