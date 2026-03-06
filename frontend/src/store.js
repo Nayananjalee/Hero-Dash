@@ -10,9 +10,7 @@
  */
 
 import { create } from 'zustand'
-
-// API URL from environment variables
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+import { API_URL, DISASTER_THEMES, devLog, devWarn, TOKENS } from './config'
 
 export const useGameStore = create((set, get) => ({
   // === Game State ===
@@ -142,7 +140,7 @@ export const useGameStore = create((set, get) => ({
     if (state.sessionId) {
       fetch(`${API_URL}/analytics/end-session/${state.sessionId}`, {
         method: 'POST'
-      }).catch(err => console.error("Failed to end session", err))
+      }).catch(err => devWarn("Failed to end session", err))
     }
     set({ 
       gameStarted: false, 
@@ -166,24 +164,24 @@ export const useGameStore = create((set, get) => ({
    * Update player lane position and auto-validate if emergency active
    */
   setLane: (lane) => {
-    console.log(`🚗 Lane changed to: ${lane}`)
+    devLog(`🚗 Lane changed to: ${lane}`)
     set({ lane })
     // Check if correct lane for current emergency
     const state = get()
     if (state.emergencyActive && state.targetLane !== null) {
       // If response is already locked, ignore further presses
       if (state.responseLocked) {
-        console.log('🔒 Response already locked - ignoring lane change')
+        devLog('🔒 Response already locked - ignoring lane change')
         return
       }
       // Lock response on first press
       set({ responseLocked: true })
-      console.log(`🎯 Checking lane target: current=${lane}, target=${state.targetLane}`)
+      devLog(`🎯 Checking lane target: current=${lane}, target=${state.targetLane}`)
       if (lane === state.targetLane) {
-        console.log('✅ CORRECT LANE! Completing emergency as success')
+        devLog('✅ CORRECT LANE! Completing emergency as success')
         state.completeEmergency(true)
       } else {
-        console.log('❌ WRONG LANE! Completing emergency as failure')
+        devLog('❌ WRONG LANE! Completing emergency as failure')
         state.completeEmergency(false)
       }
     }
@@ -193,24 +191,24 @@ export const useGameStore = create((set, get) => ({
    * Update player speed and auto-validate if emergency active
    */
   setSpeed: (speed) => {
-    console.log(`⚡ Speed changed to: ${speed}`)
+    devLog(`⚡ Speed changed to: ${speed}`)
     set({ speedModifier: speed })
     // Check if correct speed for current emergency
     const state = get()
     if (state.emergencyActive && state.targetSpeed !== null) {
       // If response is already locked, ignore further presses
       if (state.responseLocked) {
-        console.log('🔒 Response already locked - ignoring speed change')
+        devLog('🔒 Response already locked - ignoring speed change')
         return
       }
       // Lock response on first press
       set({ responseLocked: true })
-      console.log(`🎯 Checking speed target: current=${speed}, target=${state.targetSpeed}`)
+      devLog(`🎯 Checking speed target: current=${speed}, target=${state.targetSpeed}`)
       if (state.targetSpeed === speed) {
-        console.log('✅ CORRECT SPEED! Completing emergency as success')
+        devLog('✅ CORRECT SPEED! Completing emergency as success')
         state.completeEmergency(true)
       } else {
-        console.log('❌ WRONG SPEED! Completing emergency as failure')
+        devLog('❌ WRONG SPEED! Completing emergency as failure')
         state.completeEmergency(false)
       }
     }
@@ -222,7 +220,7 @@ export const useGameStore = create((set, get) => ({
    * @param {string} action - Required action (Move Right, Stop, etc.)
    */
   triggerEmergency: (type, action) => {
-    console.log(`🎯 STORE.triggerEmergency called with TYPE: "${type}", ACTION: "${action}"`)
+    devLog(`🎯 STORE.triggerEmergency called with TYPE: "${type}", ACTION: "${action}"`)
     
     let tLane = null
     let tSpeed = null
@@ -243,14 +241,8 @@ export const useGameStore = create((set, get) => ({
 
     // Trigger haptic feedback for hearing-impaired accessibility
     if ('vibrate' in navigator) {
-      const hapticPatterns = {
-        tsunami_siren: [300, 100, 300, 100, 300, 100, 300],
-        earthquake_alarm: [500, 100, 500, 100, 500],
-        flood_warning: [300, 200, 300, 200, 300, 200],
-        air_raid_siren: [400, 100, 400, 100, 400, 100],
-        building_fire_alarm: [150, 75, 150, 75, 150, 75, 150]
-      }
-      navigator.vibrate(hapticPatterns[type] || [200])
+      const theme = DISASTER_THEMES[type]
+      navigator.vibrate(theme ? theme.haptic : [200])
     }
 
     set({ 
@@ -264,7 +256,7 @@ export const useGameStore = create((set, get) => ({
       emergencyStartTime: performance.now()  // High-precision RT measurement
     })
     
-    console.log(`✅ Emergency state updated - emergencyType set to: "${type}"`)
+    devLog(`✅ Emergency state updated - emergencyType set to: "${type}"`)
   },
   
   /**
@@ -276,18 +268,18 @@ export const useGameStore = create((set, get) => ({
     
     // Prevent multiple completions of the same emergency
     if (!state.emergencyActive) {
-      console.log('⚠️ CompletEmergency called but no emergency active - ignoring')
+      devLog('⚠️ CompletEmergency called but no emergency active - ignoring')
       return
     }
     
-    console.log(`✅ Completing emergency - Success: ${success}`)
+    devLog(`✅ Completing emergency - Success: ${success}`)
     
     // Calculate actual reaction time using high-precision timer
     const reactionTime = state.emergencyStartTime 
       ? parseFloat(((performance.now() - state.emergencyStartTime) / 1000).toFixed(3))
       : 0
     
-    console.log(`⏱️ Reaction time: ${reactionTime}s`)
+    devLog(`⏱️ Reaction time: ${reactionTime}s`)
     
     // Haptic feedback for result
     if ('vibrate' in navigator) {
@@ -309,7 +301,7 @@ export const useGameStore = create((set, get) => ({
                 speed_modifier: state.mlMetrics.speed_modifier,
                 game_mode: state.gameMode
             })
-        }).catch(err => console.error("Failed to record attempt", err))
+        }).catch(err => devWarn("Failed to record attempt", err))
     }
 
     // Update game state based on success/failure
@@ -342,21 +334,21 @@ export const useGameStore = create((set, get) => ({
       })
     }
     
-    // Auto-clear feedback after 2 seconds
-    setTimeout(() => set({ feedback: null }), 2000)
+    // Auto-clear feedback (longer for young readers)
+    setTimeout(() => set({ feedback: null }), TOKENS.feedbackDuration)
   },
 
   /**
    * Clear emergency when time runs out (treated as failure)
    */
   clearEmergency: () => {
-    console.log('⏰ clearEmergency called (timeout)')
+    devLog('⏰ clearEmergency called (timeout)')
     const state = get()
     if (state.emergencyActive) {
-        console.log('❌ Marking emergency as FAILED due to timeout')
+        devLog('❌ Marking emergency as FAILED due to timeout')
         state.completeEmergency(false)  // Timeout = failure
     } else {
-      console.log('ℹ️ No active emergency to clear')
+      devLog('ℹ️ No active emergency to clear')
     }
   },
 }))
