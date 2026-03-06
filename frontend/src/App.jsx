@@ -7,7 +7,7 @@
 
 import React, { useEffect, Suspense, useRef } from 'react'
 import { Canvas } from '@react-three/fiber'
-import { OrbitControls, Environment, Stars } from '@react-three/drei'
+import { Environment, Stars } from '@react-three/drei'
 import GameScene from './components/GameScene'
 import EmergencyOverlay from './components/EmergencyOverlay'
 import UI from './components/UI'
@@ -20,9 +20,7 @@ import AssessmentMode from './components/AssessmentMode'
 import AchievementSystem from './components/AchievementSystem'
 import TherapistDashboard from './components/TherapistDashboard'
 import { useGameStore } from './store'
-
-// API URL from environment variables (supports both dev and production)
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+import { API_URL, devLog, devWarn } from './config'
 
 function App() {
   const triggerEmergency = useGameStore((state) => state.triggerEmergency)
@@ -44,7 +42,7 @@ function App() {
     emergencyRemainingMs.current = ms
     const startedAt = performance.now()
     clearTimeoutId.current = setTimeout(() => {
-      console.log('⏰ Auto-clearing emergency (timeout)')
+      devLog('⏰ Auto-clearing emergency (timeout)')
       useGameStore.getState().clearEmergency()
       clearTimeoutId.current = null
       emergencyRemainingMs.current = null
@@ -56,15 +54,15 @@ function App() {
   // Fetch a new emergency from backend and trigger it
   const fetchAndTrigger = async () => {
     if (useGameStore.getState().emergencyActive) {
-      console.log('⏭️ Skipping - emergency already active')
+      devLog('⏭️ Skipping - emergency already active')
       return
     }
     try {
-      console.log('🎯 Fetching emergency from backend...')
+      devLog('🎯 Fetching emergency from backend...')
       const response = await fetch(`${API_URL}/recommend/${userId}`)
       if (!response.ok) throw new Error('Failed to fetch')
       const data = await response.json()
-      console.log(`🚨 Emergency: ${data.type} - ${data.action}`)
+      devLog(`🚨 Emergency: ${data.type} - ${data.action}`)
 
       useGameStore.getState().setMLMetrics({
         cognitive_load: data.cognitive_load,
@@ -77,7 +75,7 @@ function App() {
       triggerEmergency(data.type, data.action)
       scheduleAutoClear(emergencyDurationMs)
     } catch (error) {
-      console.error('❌ Backend error or offline:', error)
+      devWarn('❌ Backend error or offline:', error)
     }
   }
 
@@ -91,16 +89,16 @@ function App() {
         clearTimeout(clearTimeoutId.current)
         clearTimeoutId.current = null
         emergencyRemainingMs.current = remaining
-        console.log(`⏸️ Paused with ${(remaining / 1000).toFixed(1)}s remaining on emergency`)
+        devLog(`⏸️ Paused with ${(remaining / 1000).toFixed(1)}s remaining on emergency`)
       }
       return
     }
 
-    console.log('✅ Starting emergency polling')
+    devLog('✅ Starting emergency polling')
 
     // --- UNPAUSING: if emergency is still active, resume its timer ---
     if (useGameStore.getState().emergencyActive && emergencyRemainingMs.current != null && emergencyRemainingMs.current > 0) {
-      console.log(`▶️ Resuming emergency timer with ${(emergencyRemainingMs.current / 1000).toFixed(1)}s`)
+      devLog(`▶️ Resuming emergency timer with ${(emergencyRemainingMs.current / 1000).toFixed(1)}s`)
       scheduleAutoClear(emergencyRemainingMs.current)
     }
 
@@ -120,7 +118,7 @@ function App() {
   // Clear auto-clear timeout when emergency is completed
   useEffect(() => {
     if (!emergencyActive && clearTimeoutId.current) {
-      console.log('🛑 Emergency completed - clearing auto-timeout')
+      devLog('🛑 Emergency completed - clearing auto-timeout')
       clearTimeout(clearTimeoutId.current)
       clearTimeoutId.current = null
       emergencyRemainingMs.current = null
@@ -137,7 +135,7 @@ function App() {
       .then(data => {
         useGameStore.getState().setSessionId(data.session_id)
       })
-      .catch(err => console.error("Failed to start session", err))
+      .catch(err => devWarn("Failed to start session", err))
     }
   }, [gameStarted, userId])
 
