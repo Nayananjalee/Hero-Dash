@@ -450,6 +450,13 @@ export default function TherapistDashboard({ userId, onBack }) {
     setExporting(true)
     try {
       const res = await fetch(`${API_URL}/export/clinical-report/${userId}?days=90`)
+      if (!res.ok) {
+        const errText = await res.text()
+        console.error('Export API error:', res.status, errText)
+        alert(`Export failed: server returned ${res.status}. Please try again.`)
+        setExporting(false)
+        return
+      }
       const data = await res.json()
 
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
@@ -717,7 +724,8 @@ export default function TherapistDashboard({ userId, onBack }) {
         doc.setFontSize(8.5)
         doc.setTextColor(50, 50, 50)
         for (const rec of recs) {
-          const lines = doc.splitTextToSize(`• ${rec}`, contentW - 5)
+          const recText = typeof rec === 'object' ? (rec.suggestion || rec.area || JSON.stringify(rec)) : String(rec)
+          const lines = doc.splitTextToSize(`• ${recText}`, contentW - 5)
           checkSpace(lines.length * 4 + 2)
           doc.text(lines, margin + 3, y)
           y += lines.length * 4 + 2
