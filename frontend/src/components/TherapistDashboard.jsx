@@ -902,8 +902,8 @@ export default function TherapistDashboard({ userId, onBack }) {
                 </>
               )}
 
-              {/* SKILLS TAB - HIDDEN */}
-              {/* {activeTab === 'skills' && (
+              {/* SKILLS TAB - HIDDEN
+              {activeTab === 'skills' && (
                 <>
                   <BKTVisualization 
                     skills={dashboardData?.bkt_skill_mastery?.skills}
@@ -913,7 +913,8 @@ export default function TherapistDashboard({ userId, onBack }) {
                   <IRTDisplay irtData={dashboardData?.irt_ability} trajectory={irtTrajectory} />
                   <PsychometricValidity psych={dashboardData?.psychometric_validity} />
                 </>
-              )} */
+              )}
+              */}
 
               {/* MEMORY TAB */}
               {activeTab === 'memory' && (
