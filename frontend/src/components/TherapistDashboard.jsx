@@ -836,7 +836,7 @@ export default function TherapistDashboard({ userId, onBack }) {
       {/* Tab Navigation */}
       <div style={{ padding: '12px 20px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
         <TabButton active={activeTab === 'overview'} label="Overview" icon="📊" onClick={() => setActiveTab('overview')} />
-        <TabButton active={activeTab === 'skills'} label="Skills & BKT" icon="🧠" onClick={() => setActiveTab('skills')} />
+        {/* <TabButton active={activeTab === 'skills'} label="Skills & BKT" icon="🧠" onClick={() => setActiveTab('skills')} /> */}
         <TabButton active={activeTab === 'memory'} label="Memory" icon="🔄" onClick={() => setActiveTab('memory')} />
         <TabButton active={activeTab === 'plan'} label="Training Plan" icon="📅" onClick={() => setActiveTab('plan')} />
         <TabButton active={activeTab === 'achievements'} label="Achievements" icon="🏆" onClick={() => setActiveTab('achievements')} />
@@ -902,8 +902,8 @@ export default function TherapistDashboard({ userId, onBack }) {
                 </>
               )}
 
-              {/* SKILLS TAB */}
-              {activeTab === 'skills' && (
+              {/* SKILLS TAB - HIDDEN */}
+              {/* {activeTab === 'skills' && (
                 <>
                   <BKTVisualization 
                     skills={dashboardData?.bkt_skill_mastery?.skills}
@@ -913,7 +913,7 @@ export default function TherapistDashboard({ userId, onBack }) {
                   <IRTDisplay irtData={dashboardData?.irt_ability} trajectory={irtTrajectory} />
                   <PsychometricValidity psych={dashboardData?.psychometric_validity} />
                 </>
-              )}
+              )} */
 
               {/* MEMORY TAB */}
               {activeTab === 'memory' && (
