@@ -57,9 +57,10 @@ def thompson_sampling_scenario_selection(db: Session, user_id: int) -> Tuple[str
         # Beta(alpha, beta) represents uncertainty about success probability
         samples[scenario] = np.random.beta(params["alpha"], params["beta"])
     
-    # Select scenario with highest sample
-    selected = max(samples, key=samples.get)
-    learning_potential = samples[selected]
+    # Select scenario with LOWEST sample (target weakest area for learning)
+    # Pedagogically, we want to practice what the child struggles with most
+    selected = min(samples, key=samples.get)
+    learning_potential = 1.0 - samples[selected]  # Higher potential = weaker area
     
     return selected, bandit_state, learning_potential
 
