@@ -644,6 +644,7 @@ export default function StartScreen() {
                 {/* Quick actions below summary */}
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '10px' }}>
                   {[
+                    { label: '📋 Missions', action: () => registerAndDo(() => useGameStore.getState().setShowMissionSelect(true)), bg: '#e74c3c' },
                     { label: '🩺 Therapist', action: () => registerAndDo(() => useGameStore.getState().setShowTherapistDashboard(true)), bg: '#9b59b6' },
                     { label: '📋 Assess', action: () => registerAndDo(() => useGameStore.getState().launchAssessment('baseline')), bg: '#e67e22' },
                     { label: '📊 Dashboard', action: handleDashboard, bg: '#3498db' },
@@ -653,7 +654,7 @@ export default function StartScreen() {
                       padding: '5px 10px', fontSize: '0.72rem', fontWeight: 700,
                       background: loading ? '#555' : btn.bg, color: 'white',
                       border: 'none', borderRadius: '8px', cursor: loading ? 'not-allowed' : 'pointer',
-                      flex: '1 1 45%'
+                      flex: '1 1 30%'
                     }}>{btn.label}</button>
                   ))}
                 </div>
