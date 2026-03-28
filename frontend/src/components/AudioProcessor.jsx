@@ -15,6 +15,9 @@
  * - Audiogram-based automatic gain prescription
  * - Real-time frequency response adjustment
  * - Background noise level control per difficulty
+ * 
+ * FIX: Now exposes the AudioContext and processing chain so SoundManager
+ * can route audio through it (previously the chain was disconnected).
  */
 
 import { useEffect, useRef, useCallback } from 'react'
@@ -45,18 +48,46 @@ function calculatePrescribedGain(thresholdDB) {
   return Math.min(gain, 30) // Cap at 30 dB gain to prevent distortion
 }
 
+// =================================================================
+// Shared AudioContext singleton — accessible by SoundManager
+// =================================================================
+let _sharedAudioContext = null
+let _sharedInputNode = null  // The entry point for audio sources
+let _isChainReady = false
+
 /**
- * Convert dB gain to Web Audio API linear gain value
+ * Get the shared AudioContext. Creates one if needed.
+ * SoundManager calls this to route its MediaElementSource nodes.
  */
-function dbToLinear(db) {
-  return Math.pow(10, db / 20)
+export function getAudioContext() {
+  if (!_sharedAudioContext) {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext
+    if (!AudioCtx) return null
+    _sharedAudioContext = new AudioCtx()
+  }
+  return _sharedAudioContext
+}
+
+/**
+ * Get the input node of the processing chain.
+ * SoundManager connects MediaElementSourceNodes to this.
+ * Returns null if the chain isn't ready yet (falls back to direct output).
+ */
+export function getProcessingInputNode() {
+  return _isChainReady ? _sharedInputNode : null
+}
+
+/**
+ * Check if the processing chain is initialized.
+ */
+export function isAudioChainReady() {
+  return _isChainReady
 }
 
 export default function AudioProcessor() {
   const { hearingProfile, mlMetrics, gameStarted, gameMode } = useGameStore()
   const currentNoiseLevel = mlMetrics?.noise_level ?? 0.2
   
-  const audioContextRef = useRef(null)
   const eqFiltersRef = useRef([])
   const compressorRef = useRef(null)
   const gainNodeRef = useRef(null)
@@ -64,24 +95,27 @@ export default function AudioProcessor() {
 
   /**
    * Initialize Web Audio API processing chain:
-   * Input → Parametric EQ (6 bands) → Compressor → Master Gain → Output
+   * Input GainNode → Parametric EQ (6 bands) → Compressor → Master Gain → Output
+   * 
+   * SoundManager connects its MediaElementSource nodes to the Input GainNode.
    */
   const initializeAudioChain = useCallback(() => {
     if (isInitializedRef.current) return
     
     try {
-      // Create or resume AudioContext
-      const AudioCtx = window.AudioContext || window.webkitAudioContext
-      if (!AudioCtx) {
+      const ctx = getAudioContext()
+      if (!ctx) {
         console.warn('Web Audio API not supported')
         return
       }
-      
-      const ctx = new AudioCtx()
-      audioContextRef.current = ctx
+
+      // Create an input gain node — this is the entry point for all game audio
+      const inputGain = ctx.createGain()
+      inputGain.gain.value = 1.0
+      _sharedInputNode = inputGain
 
       // Create 6-band parametric EQ at audiometric frequencies
-      const filters = AUDIOMETRIC_FREQUENCIES.map((freq, idx) => {
+      const filters = AUDIOMETRIC_FREQUENCIES.map((freq) => {
         const filter = ctx.createBiquadFilter()
         filter.type = 'peaking'
         filter.frequency.value = freq
@@ -90,7 +124,8 @@ export default function AudioProcessor() {
         return filter
       })
 
-      // Chain filters in series
+      // Chain: inputGain → filter[0] → filter[1] → ... → filter[5]
+      inputGain.connect(filters[0])
       for (let i = 0; i < filters.length - 1; i++) {
         filters[i].connect(filters[i + 1])
       }
@@ -116,9 +151,11 @@ export default function AudioProcessor() {
       compressorRef.current = compressor
       gainNodeRef.current = masterGain
       isInitializedRef.current = true
+      _isChainReady = true
 
-      console.log('🎛️ AudioProcessor: Web Audio chain initialized')
+      console.log('🎛️ AudioProcessor: Web Audio chain initialized & shared')
       console.log(`   Frequencies: ${AUDIOMETRIC_FREQUENCIES.join(', ')} Hz`)
+      console.log('   SoundManager can now route audio through this chain')
       
     } catch (error) {
       console.error('AudioProcessor initialization failed:', error)
@@ -127,12 +164,10 @@ export default function AudioProcessor() {
 
   /**
    * Apply audiogram-based EQ gains
-   * Uses hearing profile thresholds to prescribe frequency-specific amplification
    */
   const applyAudiogramGains = useCallback(() => {
     if (!isInitializedRef.current || !eqFiltersRef.current.length) return
 
-    // Determine hearing thresholds
     const hearingLevel = hearingProfile?.hearing_level || 'normal'
     const thresholds = hearingProfile?.audiogram_thresholds || HEARING_LEVEL_THRESHOLDS[hearingLevel] || HEARING_LEVEL_THRESHOLDS.normal
 
@@ -151,7 +186,6 @@ export default function AudioProcessor() {
     // Adjust compressor based on hearing severity
     if (compressorRef.current) {
       const severityIndex = Object.keys(HEARING_LEVEL_THRESHOLDS).indexOf(hearingLevel)
-      // More compression for greater hearing loss
       compressorRef.current.ratio.value = 3 + severityIndex * 0.5
       compressorRef.current.threshold.value = -20 - severityIndex * 3
     }
@@ -159,25 +193,24 @@ export default function AudioProcessor() {
 
   /**
    * Adjust master volume based on noise level (difficulty)
-   * Higher noise = louder emergency sounds for discrimination training
    */
   const adjustForNoise = useCallback(() => {
     if (!gainNodeRef.current) return
+    const ctx = getAudioContext()
+    if (!ctx) return
     
-    // Boost signal when noise is high (Signal-to-Noise ratio maintenance)
     const noiseBoost = 1 + (currentNoiseLevel * 0.5)
     gainNodeRef.current.gain.setTargetAtTime(
       noiseBoost, 
-      audioContextRef.current?.currentTime || 0, 
-      0.1 // 100ms smoothing
+      ctx.currentTime || 0, 
+      0.1
     )
   }, [currentNoiseLevel])
 
   // Initialize on game start
   useEffect(() => {
     if (gameStarted && !isInitializedRef.current) {
-      // Delay initialization to ensure user interaction has occurred
-      const timer = setTimeout(initializeAudioChain, 500)
+      const timer = setTimeout(initializeAudioChain, 100)
       return () => clearTimeout(timer)
     }
   }, [gameStarted, initializeAudioChain])
@@ -197,8 +230,9 @@ export default function AudioProcessor() {
   // Resume AudioContext on user interaction (browser requirement)
   useEffect(() => {
     const resumeContext = () => {
-      if (audioContextRef.current?.state === 'suspended') {
-        audioContextRef.current.resume()
+      const ctx = getAudioContext()
+      if (ctx?.state === 'suspended') {
+        ctx.resume()
         console.log('🎛️ AudioContext resumed')
       }
     }
@@ -215,13 +249,15 @@ export default function AudioProcessor() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (audioContextRef.current) {
-        audioContextRef.current.close()
+      if (_sharedAudioContext) {
+        _sharedAudioContext.close()
+        _sharedAudioContext = null
+        _sharedInputNode = null
+        _isChainReady = false
         console.log('🎛️ AudioProcessor: Cleaned up')
       }
     }
   }, [])
 
-  // This is a processing component - no visual output
   return null
 }
