@@ -186,6 +186,166 @@ export const TOKENS = {
   glassBorder: 'rgba(255,255,255,0.10)',
 }
 
+// ─── ENVIRONMENT ZONES ─────────────────────────────────
+// Cycle through crisis-relevant environments for visual variety
+// Research: Ecological validity — Barnett & Ceci (2002)
+export const ENVIRONMENT_ZONES = [
+  {
+    id: 'city',
+    label: '🏙️ Downtown City',
+    labelSi: 'නගරය',
+    roadColor: '#2c3e50',
+    groundColor: '#1a1a1a',
+    fogColor: '#101010',
+    buildingColors: ['#bdc3c7', '#95a5a6', '#7f8c8d', '#e74c3c', '#3498db'],
+    treeColor: '#2d5a27',
+    skyTint: 0.3,
+  },
+  {
+    id: 'coastal',
+    label: '🏖️ Coastal Area',
+    labelSi: 'වෙරළ තීරය',
+    roadColor: '#a0936e',
+    groundColor: '#c2b280',
+    fogColor: '#1a3040',
+    buildingColors: ['#f5f5dc', '#deb887', '#87ceeb', '#fff8dc', '#f0e68c'],
+    treeColor: '#228B22',
+    skyTint: 0.5,
+  },
+  {
+    id: 'school',
+    label: '🏫 School Zone',
+    labelSi: 'පාසල් කලාපය',
+    roadColor: '#555555',
+    groundColor: '#3a5a3a',
+    fogColor: '#1a1a10',
+    buildingColors: ['#e8d44d', '#f39c12', '#fff3cd', '#ffeaa7', '#fdcb6e'],
+    treeColor: '#27ae60',
+    skyTint: 0.4,
+  },
+  {
+    id: 'village',
+    label: '🌳 Rural Village',
+    labelSi: 'ගම්බද ප්‍රදේශය',
+    roadColor: '#6b4226',
+    groundColor: '#4a7c3f',
+    fogColor: '#0a1a0a',
+    buildingColors: ['#8B4513', '#D2691E', '#A0522D', '#deb887', '#f5deb3'],
+    treeColor: '#1e7a1e',
+    skyTint: 0.35,
+  },
+]
+
+// ─── WEATHER EFFECTS ───────────────────────────────────
+// Visual overlays that add variety and figure-ground difficulty
+// Research: Musiek et al. (2005) — figure-ground separation training
+export const WEATHER_TYPES = [
+  { id: 'clear', label: '☀️ Clear', opacity: 0, noiseBoost: 0 },
+  { id: 'rain', label: '🌧️ Rain', opacity: 0.25, noiseBoost: 0.1 },
+  { id: 'fog', label: '🌫️ Dense Fog', opacity: 0.4, noiseBoost: 0.05 },
+  { id: 'night', label: '🌙 Night', opacity: 0.5, noiseBoost: 0 },
+]
+
+// ─── COMBO STREAKS ─────────────────────────────────────
+// Variable ratio reinforcement (Skinner, 1957)
+export const COMBO_MILESTONES = [
+  { streak: 3,  label: 'Nice!',      labelSi: 'ලස්සනයි!',      multiplier: 1.5, color: '#2ecc71', emoji: '👍' },
+  { streak: 5,  label: 'Amazing!',    labelSi: 'අසාමාන්‍යයි!',    multiplier: 2.0, color: '#f1c40f', emoji: '⭐' },
+  { streak: 7,  label: 'HERO MODE!',  labelSi: 'වීරයා ප්‍රකාරය!',  multiplier: 3.0, color: '#e67e22', emoji: '🦸' },
+  { streak: 10, label: 'LEGENDARY!',  labelSi: 'පුරාවෘත්තමය!',  multiplier: 5.0, color: '#9b59b6', emoji: '🔥', bonusLife: true },
+]
+
+// ─── CRISIS STORY MISSIONS ─────────────────────────────
+// Narrative transportation theory (Green & Brock, 2000)
+export const MISSIONS = [
+  {
+    id: 'hospital_rescue',
+    title: '🏥 Hospital Rescue',
+    titleSi: 'රෝහල මුදාගැනීම',
+    story: 'Get the ambulance to the hospital safely!',
+    storySi: 'ගිලන්රථය ආරක්ෂිතව රෝහලට ගෙන යන්න!',
+    totalTrials: 6,
+    goal: 'Score ≥ 400',
+    goalCheck: (stats) => stats.score >= 400,
+    difficulty: 1,
+    scenarios: null, // null = use ML recommendations
+    stars: [
+      { required: 400, label: '⭐' },
+      { required: 500, label: '⭐⭐' },
+      { required: 600, label: '⭐⭐⭐' },
+    ]
+  },
+  {
+    id: 'school_evacuation',
+    title: '🏫 School Evacuation',
+    titleSi: 'පාසල් ඉවත් කිරීම',
+    story: 'Guide all students to safety — no mistakes!',
+    storySi: 'සිසුන් සියලුදෙනා ආරක්ෂාවට ගෙන යන්න!',
+    totalTrials: 6,
+    goal: '≤ 1 mistake',
+    goalCheck: (stats) => stats.failures <= 1,
+    difficulty: 2,
+    scenarios: null,
+    stars: [
+      { required: 0, label: '⭐', check: (s) => s.failures <= 1 },
+      { required: 0, label: '⭐⭐', check: (s) => s.failures === 0 },
+      { required: 0, label: '⭐⭐⭐', check: (s) => s.failures === 0 && s.avgRT < 3.0 },
+    ]
+  },
+  {
+    id: 'coastal_alert',
+    title: '🌊 Coastal Alert',
+    titleSi: 'වෙරළ තීර අනතුරු ඇඟවීම',
+    story: 'Tsunami warning! Reach high ground!',
+    storySi: 'සුනාමි අනතුරු ඇඟවීම! ඉහළ බිමකට යන්න!',
+    totalTrials: 8,
+    goal: 'Complete all emergencies',
+    goalCheck: (stats) => stats.completed >= 8,
+    difficulty: 2,
+    scenarios: ['tsunami_siren', 'flood_warning', 'tsunami_siren', 'earthquake_alarm', 'tsunami_siren', 'flood_warning', 'building_fire_alarm', 'tsunami_siren'],
+    stars: [
+      { required: 0, label: '⭐', check: (s) => s.completed >= 8 },
+      { required: 0, label: '⭐⭐', check: (s) => s.failures <= 2 },
+      { required: 0, label: '⭐⭐⭐', check: (s) => s.failures === 0 },
+    ]
+  },
+  {
+    id: 'fire_hero',
+    title: '🔥 Fire Station Hero',
+    titleSi: 'ගිනි නිවීම් වීරයා',
+    story: 'Rush to save the building — be fast!',
+    storySi: 'ගොඩනැගිල්ල බේරාගන්න — වේගවත් වන්න!',
+    totalTrials: 6,
+    goal: 'Average RT < 3 seconds',
+    goalCheck: (stats) => stats.avgRT < 3.0,
+    difficulty: 3,
+    scenarios: ['building_fire_alarm', 'earthquake_alarm', 'building_fire_alarm', 'air_raid_siren', 'building_fire_alarm', 'flood_warning'],
+    stars: [
+      { required: 0, label: '⭐', check: (s) => s.avgRT < 4.0 },
+      { required: 0, label: '⭐⭐', check: (s) => s.avgRT < 3.0 },
+      { required: 0, label: '⭐⭐⭐', check: (s) => s.avgRT < 2.0 },
+    ]
+  },
+  {
+    id: 'crisis_commander',
+    title: '🌍 Crisis Commander',
+    titleSi: 'අර්බුද සේනාධිනායක',
+    story: 'Master all 5 crisis types — become a legend!',
+    storySi: 'අර්බුද වර්ග 5ම මුහුණ දෙන්න!',
+    totalTrials: 10,
+    goal: 'Master all 5 types',
+    goalCheck: (stats) => stats.typesCorrect >= 5,
+    difficulty: 3,
+    scenarios: ['tsunami_siren', 'earthquake_alarm', 'flood_warning', 'air_raid_siren', 'building_fire_alarm',
+                'tsunami_siren', 'earthquake_alarm', 'flood_warning', 'air_raid_siren', 'building_fire_alarm'],
+    stars: [
+      { required: 0, label: '⭐', check: (s) => s.typesCorrect >= 3 },
+      { required: 0, label: '⭐⭐', check: (s) => s.typesCorrect >= 5 },
+      { required: 0, label: '⭐⭐⭐', check: (s) => s.typesCorrect >= 5 && s.failures === 0 },
+    ]
+  },
+]
+
 // ─── HAPTIC / VISUAL FEEDBACK ──────────────────────────
 // Desktop/laptop PCs don't support navigator.vibrate().
 // This utility provides a visual screen-shake + border flash fallback
