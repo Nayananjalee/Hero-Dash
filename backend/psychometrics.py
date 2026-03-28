@@ -355,8 +355,8 @@ def calculate_effect_size(pre_scores: List[float], post_scores: List[float]) -> 
     ci_low = d - 1.96 * se_d
     ci_high = d + 1.96 * se_d
     
-    # Statistical test
-    t_stat, p_value = scipy_stats.ttest_ind(post_scores, pre_scores)
+    # Statistical test — paired t-test (same participant pre vs post)
+    t_stat, p_value = scipy_stats.ttest_rel(post_scores, pre_scores)
     
     # Interpretation
     abs_d = abs(d)
