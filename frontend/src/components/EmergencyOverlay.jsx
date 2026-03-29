@@ -115,6 +115,7 @@ function DirectionalArrow({ direction, color }) {
 
 export default function EmergencyOverlay() {
   const { emergencyActive, emergencyType, gameMode } = useGameStore()
+  const level = useGameStore((state) => state.level)
   const theme = emergencyType ? VEHICLE_THEMES[emergencyType] : null
 
   return (
@@ -150,14 +151,25 @@ export default function EmergencyOverlay() {
               borderRadius: '20px', border: `3px solid ${theme.secondary}`,
               boxShadow: `0 0 30px ${theme.glow}`
             }}>
-              <div style={{ fontSize: '2.5rem', color: 'white', fontWeight: 'bold',
-                textShadow: '2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000' }}>
-                {gameMode === 'visual-only' ? '👁️ Look!' : '🔊 Listen!'} {theme.icon} {theme.action}
-              </div>
-              <div style={{ fontSize: '1.3rem', color: theme.secondary, marginTop: '5px',
-                textShadow: '1px 1px 0 #000, -1px -1px 0 #000' }}>
-                {theme.sinhala} — {theme.actionSinhala}
-              </div>
+              {/* Level 3 ට වඩා අඩු නම් විතරක් Action එක පෙන්නන්න (Prompt Fading / Scaffolding) */}
+              {level < 3 ? (
+                <>
+                  <div style={{ fontSize: '2.5rem', color: 'white', fontWeight: 'bold',
+                    textShadow: '2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000' }}>
+                    {gameMode === 'visual-only' ? '👁️ Look!' : '🔊 Listen!'} {theme.icon} {theme.action}
+                  </div>
+                  <div style={{ fontSize: '1.3rem', color: theme.secondary, marginTop: '5px',
+                    textShadow: '1px 1px 0 #000, -1px -1px 0 #000' }}>
+                    {theme.sinhala} — {theme.actionSinhala}
+                  </div>
+                  <DirectionalArrow direction={theme.direction} color={theme.primary} />
+                </>
+              ) : (
+                // Level 3 පැන්නම මේක පෙන්නන්නේ නෑ, ළමයා සද්දෙන් විතරක් හොයාගන්න ඕනේ!
+                <div style={{ fontSize: '1.5rem', color: '#FFD700', marginTop: '10px', animation: 'pulse 1s infinite' }}>
+                  ⚠️ Listen Carefully! (හොඳින් අහන්න!)
+                </div>
+              )}
             </div>
           </motion.div>
 
