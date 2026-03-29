@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useMemo, memo, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useGameStore } from '../store'
 import { AGE_SPEED, ENVIRONMENT_ZONES } from '../config'
+import { playProceduralDistractor } from './AudioProcessor'
 import * as THREE from 'three'
 
 // ─── SHARED SPEED HOOK ─────────────────────────────────
@@ -450,6 +451,19 @@ function ZoneBadge() {
 export default function GameScene() {
   const currentZone = useGameStore(s => s.currentZone)
   const groundColor = currentZone?.groundColor || '#1a1a1a'
+
+  // Procedural Distractor Sound — random car horn every ~15s
+  useEffect(() => {
+    // තත්පර 15කට සැරයක් Random විදියට නලා සද්දයක් එනවා (Distractor)
+    const distractorInterval = setInterval(() => {
+      // Crisis එකක් යන්නේ නැති වෙලාවට විතරක් සද්දෙ දාන්න
+      if (Math.random() > 0.5) {
+        playProceduralDistractor();
+      }
+    }, 15000);
+
+    return () => clearInterval(distractorInterval);
+  }, []);
 
   return (
     <>
