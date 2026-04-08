@@ -1,0 +1,204 @@
+substitutions:
+  _REGION: europe-west1
+  _AR_REPO: hero-dash
+  _BACKEND_SERVICE: hero-dash-backend
+  _FRONTEND_SERVICE: hero-dash-frontend
+  _RUNTIME_SERVICE_ACCOUNT: ''
+  _GOOGLE_API_SECRET: google-api-key
+  _DATABASE_URL_SECRET: database-url
+
+steps:
+- name: gcr.io/google.com/cloudsdktool/cloud-sdk
+  id: ensure-artifact-repo
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      gcloud artifacts repositories describe ${_AR_REPO} --location ${_REGION} >/dev/null 2>&1 || \
+      gcloud artifacts repositories create ${_AR_REPO} \
+        --repository-format=docker \
+        --location=${_REGION} \
+        --description="Hero Dash images"
+
+- name: gcr.io/cloud-builders/docker
+  id: build-backend-image
+  args:
+    - build
+    - -t
+    - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_BACKEND_SERVICE}:$COMMIT_SHA
+    - ./backend
+
+- name: gcr.io/cloud-builders/docker
+  id: push-backend-image
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      for i in 1 2 3 4 5; do
+        docker push ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_BACKEND_SERVICE}:$COMMIT_SHA && exit 0
+        echo "Backend push retry $$i/5 after registry rate limit/transient failure"
+        sleep $$((i * 8))
+      done
+      echo "Backend push failed after retries"
+      exit 1
+
+- name: gcr.io/google.com/cloudsdktool/cloud-sdk
+  id: verify-required-secrets
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      set -euo pipefail
+      echo "Checking required secrets in project: $PROJECT_ID"
+      for SECRET_NAME in ${_GOOGLE_API_SECRET} ${_DATABASE_URL_SECRET}; do
+        if ! gcloud secrets describe "$$SECRET_NAME" >/dev/null 2>&1; then
+          echo "Missing Secret Manager secret: $$SECRET_NAME"
+          echo "Create it before running Cloud Build, for example:"
+          echo "  gcloud secrets create $$SECRET_NAME --replication-policy=automatic --project=$PROJECT_ID"
+          echo "  printf 'REPLACE_ME' | gcloud secrets versions add $$SECRET_NAME --data-file=- --project=$PROJECT_ID"
+          exit 1
+        fi
+
+        if ! gcloud secrets versions list "$$SECRET_NAME" --filter='state=ENABLED' --limit=1 --format='value(name)' | grep -q .; then
+          echo "Secret exists but has no ENABLED versions: $$SECRET_NAME"
+          echo "Add an enabled version before deploy:"
+          echo "  printf 'REPLACE_ME' | gcloud secrets versions add $$SECRET_NAME --data-file=- --project=$PROJECT_ID"
+          exit 1
+        fi
+      done
+      echo "All required secrets exist and have enabled versions."
+
+- name: gcr.io/google.com/cloudsdktool/cloud-sdk
+  id: grant-secret-access
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      set -euo pipefail
+      RUNTIME_SA="${_RUNTIME_SERVICE_ACCOUNT}"
+      if [ -z "$$RUNTIME_SA" ]; then
+        PROJECT_NUMBER=$$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+        if [ -z "$$PROJECT_NUMBER" ]; then
+          echo "Could not resolve project number for runtime service account"
+          exit 1
+        fi
+        RUNTIME_SA="$$PROJECT_NUMBER-compute@developer.gserviceaccount.com"
+      fi
+      echo "Using runtime service account: $$RUNTIME_SA"
+      for SECRET_NAME in ${_GOOGLE_API_SECRET} ${_DATABASE_URL_SECRET}; do
+        echo "Granting roles/secretmanager.secretAccessor on $$SECRET_NAME to $$RUNTIME_SA"
+        if ! gcloud secrets add-iam-policy-binding "$$SECRET_NAME" \
+          --member="serviceAccount:$$RUNTIME_SA" \
+          --role="roles/secretmanager.secretAccessor"; then
+          echo "Failed to grant access for secret: $$SECRET_NAME"
+          exit 1
+        fi
+      done
+      echo "Granted secret access to $$RUNTIME_SA"
+
+- name: gcr.io/google.com/cloudsdktool/cloud-sdk
+  id: deploy-backend
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      RUNTIME_SA="${_RUNTIME_SERVICE_ACCOUNT}"
+      if [ -z "$$RUNTIME_SA" ]; then
+        PROJECT_NUMBER=$$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
+        if [ -z "$$PROJECT_NUMBER" ]; then
+          echo "Could not resolve project number for runtime service account"
+          exit 1
+        fi
+        RUNTIME_SA="$$PROJECT_NUMBER-compute@developer.gserviceaccount.com"
+      fi
+      echo "Using runtime service account: $$RUNTIME_SA"
+      for i in 1 2 3 4 5; do
+        gcloud run deploy ${_BACKEND_SERVICE} \
+          --image ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_BACKEND_SERVICE}:$COMMIT_SHA \
+          --region ${_REGION} \
+          --platform managed \
+          --service-account $$RUNTIME_SA \
+          --allow-unauthenticated \
+          --port 8080 \
+          --command python \
+          --args=-m,uvicorn,main:app,--host,0.0.0.0,--port,8080 \
+          --memory 1Gi \
+          --set-secrets DATABASE_URL=${_DATABASE_URL_SECRET}:latest \
+          --set-env-vars PYTHONUNBUFFERED=1 && exit 0
+        echo "Backend deploy retry $$i/5 after conflict or transient failure"
+        sleep $$((i * 5))
+      done
+      echo "Backend deploy failed after retries"
+      exit 1
+
+- name: gcr.io/google.com/cloudsdktool/cloud-sdk
+  id: get-backend-url
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      BACKEND_URL=$$(gcloud run services describe ${_BACKEND_SERVICE} --region ${_REGION} --format='value(status.url)')
+      echo "$$BACKEND_URL" > /workspace/backend_url.txt
+      echo "Backend URL: $$BACKEND_URL"
+
+- name: gcr.io/cloud-builders/docker
+  id: build-frontend-image
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      BACKEND_URL=$$(cat /workspace/backend_url.txt)
+      docker build \
+        -t ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_FRONTEND_SERVICE}:$COMMIT_SHA \
+        --build-arg REACT_APP_API_URL=$$BACKEND_URL \
+        ./frontend
+
+- name: gcr.io/cloud-builders/docker
+  id: push-frontend-image
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      for i in 1 2 3 4 5; do
+        docker push ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_FRONTEND_SERVICE}:$COMMIT_SHA && exit 0
+        echo "Frontend push retry $$i/5 after registry rate limit/transient failure"
+        sleep $$((i * 8))
+      done
+      echo "Frontend push failed after retries"
+      exit 1
+
+- name: gcr.io/google.com/cloudsdktool/cloud-sdk
+  id: deploy-frontend
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      for i in 1 2 3 4 5; do
+        gcloud run deploy ${_FRONTEND_SERVICE} \
+          --image ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_FRONTEND_SERVICE}:$COMMIT_SHA \
+          --region ${_REGION} \
+          --platform managed \
+          --allow-unauthenticated \
+          --memory 512Mi && exit 0
+        echo "Frontend deploy retry $$i/5 after transient failure"
+        sleep $$((i * 5))
+      done
+      echo "Frontend deploy failed after retries"
+      exit 1
+
+- name: gcr.io/google.com/cloudsdktool/cloud-sdk
+  id: set-cors
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      FRONTEND_URL=$$(gcloud run services describe ${_FRONTEND_SERVICE} --region ${_REGION} --format='value(status.url)')
+      gcloud run services update ${_BACKEND_SERVICE} \
+        --region ${_REGION} \
+        --update-env-vars ALLOWED_ORIGINS=$$FRONTEND_URL
+      echo "Frontend URL: $$FRONTEND_URL"
+
+timeout: 1800s
+
+options:
+  logging: CLOUD_LOGGING_ONLY

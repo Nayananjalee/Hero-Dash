@@ -268,33 +268,30 @@ export default function AudioProcessor() {
  * Auditory Figure-Ground Discrimination.
  */
 export const playProceduralDistractor = () => {
-    // Web Audio API Context එක හදාගන්නවා
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    
-    // ගණිතමය සමීකරණ වලින් සද්දෙ හදනවා (Oscillators)
-    const osc1 = ctx.createOscillator();
-    const osc2 = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-    
-    // නලා සද්දෙට ගැලපෙන Frequencies (හැම පාරම පොඩි වෙනසක් වෙන්න Random කරනවා)
-    const randomFreq = Math.random() * 50; 
-    osc1.type = 'sawtooth';
-    osc1.frequency.setValueAtTime(350 + randomFreq, ctx.currentTime); // Base Frequency
-    osc2.type = 'square';
-    osc2.frequency.setValueAtTime(400 + randomFreq, ctx.currentTime); // Dissonant Frequency
-    
-    // සද්දෙ අඩු වැඩි වෙන විදිය (Envelope)
-    gainNode.gain.setValueAtTime(0, ctx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.15, ctx.currentTime + 0.1); // Attack
-    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6); // Decay
-    
-    // එකට සම්බන්ධ කරලා Play කරනවා
-    osc1.connect(gainNode);
-    osc2.connect(gainNode);
-    gainNode.connect(ctx.destination);
-    
-    osc1.start();
-    osc2.start();
-    osc1.stop(ctx.currentTime + 0.7);
-    osc2.stop(ctx.currentTime + 0.7);
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+  const ctx = new AudioContextClass();
+  
+  const osc1 = ctx.createOscillator();
+  const osc2 = ctx.createOscillator();
+  const gainNode = ctx.createGain();
+  
+  const randomFreq = Math.random() * 50; 
+  osc1.type = 'sawtooth';
+  osc1.frequency.setValueAtTime(350 + randomFreq, ctx.currentTime);
+  osc2.type = 'square';
+  osc2.frequency.setValueAtTime(400 + randomFreq, ctx.currentTime);
+  
+  gainNode.gain.setValueAtTime(0, ctx.currentTime);
+  gainNode.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.1);
+  gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+  
+  osc1.connect(gainNode);
+  osc2.connect(gainNode);
+  gainNode.connect(ctx.destination);
+  
+  osc1.start();
+  osc2.start();
+  osc1.stop(ctx.currentTime + 0.7);
+  osc2.stop(ctx.currentTime + 0.7);
 };

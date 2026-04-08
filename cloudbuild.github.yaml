@@ -1,0 +1,103 @@
+name: 'Cloud Build on Push'
+description: 'Deploy Hero-Dash to Google Cloud Run on GitHub push'
+
+on:
+  push:
+    branches:
+      - main
+      - production
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION: europe-west1
+  AR_REPO: hero-dash
+  BACKEND_SERVICE: hero-dash-backend
+  FRONTEND_SERVICE: hero-dash-frontend
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev
+
+      - name: Create Artifact Repository if needed
+        run: |
+          gcloud artifacts repositories describe ${{ env.AR_REPO }} \
+            --location ${{ env.GCP_REGION }} || \
+          gcloud artifacts repositories create ${{ env.AR_REPO }} \
+            --repository-format=docker \
+            --location=${{ env.GCP_REGION }} \
+            --description="Hero-Dash images"
+
+      - name: Build and push backend image
+        run: |
+          docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.BACKEND_SERVICE }}:${{ github.sha }} ./backend
+          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.BACKEND_SERVICE }}:${{ github.sha }}
+
+      - name: Deploy backend to Cloud Run
+        run: |
+          gcloud run deploy ${{ env.BACKEND_SERVICE }} \
+            --image ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.BACKEND_SERVICE }}:${{ github.sha }} \
+            --region ${{ env.GCP_REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8080 \
+            --memory 1Gi \
+            --set-secrets GOOGLE_API_KEY=google-api-key:latest,HF_TOKEN=hf-token:latest,DATABASE_URL=database-url:latest \
+            --set-env-vars PYTHONUNBUFFERED=1
+
+      - name: Get backend URL
+        id: backend_url
+        run: |
+          BACKEND_URL=$(gcloud run services describe ${{ env.BACKEND_SERVICE }} --region ${{ env.GCP_REGION }} --format='value(status.url)')
+          echo "url=$BACKEND_URL" >> $GITHUB_OUTPUT
+
+      - name: Build and push frontend image
+        run: |
+          docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.FRONTEND_SERVICE }}:${{ github.sha }} \
+            --build-arg REACT_APP_API_URL=${{ steps.backend_url.outputs.url }} \
+            ./frontend
+          docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.FRONTEND_SERVICE }}:${{ github.sha }}
+
+      - name: Deploy frontend to Cloud Run
+        id: frontend_url
+        run: |
+          gcloud run deploy ${{ env.FRONTEND_SERVICE }} \
+            --image ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.FRONTEND_SERVICE }}:${{ github.sha }} \
+            --region ${{ env.GCP_REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --memory 512Mi
+          FRONTEND_URL=$(gcloud run services describe ${{ env.FRONTEND_SERVICE }} --region ${{ env.GCP_REGION }} --format='value(status.url)')
+          echo "url=$FRONTEND_URL" >> $GITHUB_OUTPUT
+
+      - name: Update CORS settings
+        run: |
+          gcloud run services update ${{ env.BACKEND_SERVICE }} \
+            --region ${{ env.GCP_REGION }} \
+            --update-env-vars ALLOWED_ORIGINS=${{ steps.frontend_url.outputs.url }}
+
+      - name: Print deployment URLs
+        run: |
+          echo "✅ Deployment successful!"
+          echo "Frontend: ${{ steps.frontend_url.outputs.url }}"
+          echo "Backend: ${{ steps.backend_url.outputs.url }}"
