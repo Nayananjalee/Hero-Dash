@@ -12,8 +12,11 @@ RUN npm run build
 
 # Runtime stage
 FROM nginx:1.27-alpine
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/conf.d/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 
+# Install gettext for envsubst support
+RUN apk add --no-cache gettext
+
 # Cloud Run provides PORT env var. Nginx config consumes it at startup.
-CMD ["/bin/sh", "-c", "envsubst < /etc/nginx/conf.d/default.conf > /tmp/default.conf && cp /tmp/default.conf /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+CMD ["/bin/sh", "-c", "envsubst '${PORT}' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
