@@ -138,8 +138,7 @@ steps:
           --max-instances 100 \
           --min-instances 0 \
           --set-secrets DATABASE_URL=${_DATABASE_URL_SECRET}:latest \
-          --set-env-vars PYTHONUNBUFFERED=1,ALLOWED_ORIGINS=http://localhost:5173 \
-          --health-check-disable=false && echo "✅ Backend deployed successfully" && exit 0
+          --set-env-vars PYTHONUNBUFFERED=1,ALLOWED_ORIGINS=http://localhost:5173 && echo "✅ Backend deployed successfully" && exit 0
         echo "⏳ Backend deploy retry $$i/5 after failure"
         sleep $$((i * 5))
       done
