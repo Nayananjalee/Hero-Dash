@@ -2,17 +2,15 @@
  * Global Game State Management (Zustand Store)
  * =============================================
  * Manages all game state including:
- * - Game progress (score, level, streak, combos)
+ * - Game progress (score, level)
  * - Player position (lane, speed)
  * - Emergency scenarios and validation
  * - ML metrics (cognitive load, flow state)
- * - Environment zones, weather effects
- * - Mission system state
  * - Analytics and user data
  */
 
 import { create } from 'zustand'
-import { API_URL, DISASTER_THEMES, devLog, devWarn, TOKENS, triggerHaptic, COMBO_MILESTONES, MISSIONS, ENVIRONMENT_ZONES, WEATHER_TYPES } from './config'
+import { API_URL, DISASTER_THEMES, devLog, devWarn, TOKENS, triggerHaptic } from './config'
 
 export const useGameStore = create((set, get) => ({
   // === Game State ===
@@ -29,49 +27,25 @@ export const useGameStore = create((set, get) => ({
   
   // === Emergency State ===
   emergencyActive: false,
-  emergencyType: null,
+  emergencyType: null,  // 'tsunami_siren', 'earthquake_alarm', 'flood_warning', 'air_raid_siren', 'building_fire_alarm'
   emergencyAction: null, 
-  targetLane: null,
-  targetSpeed: null,
-  feedback: null,
-  emergencyStartTime: null,
-  responseLocked: false,
-  
-  // === Streak & Combo (NEW) ===
-  streak: 0,
-  bestStreak: 0,
-  comboMilestone: null,      // Current milestone object or null
-  comboAnimationKey: 0,      // Incremented to trigger animation re-render
-  
-  // === Environment Zones (NEW) ===
-  currentZoneIndex: 0,
-  currentZone: ENVIRONMENT_ZONES[0],
-  
-  // === Weather (NEW) ===
-  currentWeatherIndex: 0,
-  currentWeather: WEATHER_TYPES[0],
-  
-  // === Mission System (NEW) ===
-  missionMode: false,
-  currentMission: null,      // Mission config object
-  missionTrialIndex: 0,      // Current trial within mission
-  missionStats: { score: 0, successes: 0, failures: 0, totalRT: 0, completed: 0, typesCorrect: new Set(), avgRT: 0 },
-  missionComplete: false,
-  missionStars: 0,
-  completedMissions: [],     // Array of mission IDs
-  showMissionSelect: false,
+  targetLane: null,     // Required lane position for current emergency
+  targetSpeed: null,    // Required speed for current emergency
+  feedback: null,       // User feedback: 'Correct! 🎉' or 'Try Again ❌'
+  emergencyStartTime: null, // High-precision timestamp for RT measurement
+  responseLocked: false,     // Lock after first key press per emergency
   
   // === User Data ===
   userId: null,
   username: null,
   sessionId: null,
-  ageGroup: '7-8',
-  hearingProfile: null,
+  ageGroup: '7-8',       // Age group for normalized scoring
+  hearingProfile: null,  // Audiogram data if provided
   
   // === Game Mode ===
-  gameMode: 'audio-visual',
-  assessmentPhase: null,
-  assessmentTrials: [],
+  gameMode: 'audio-visual', // 'audio-visual', 'visual-only', 'assessment'
+  assessmentPhase: null,    // 'baseline', 'post-test', null
+  assessmentTrials: [],     // Pre/post assessment trial data
   
   // === ML Metrics (from backend) ===
   mlMetrics: {
@@ -86,26 +60,64 @@ export const useGameStore = create((set, get) => ({
   clinicalScores: null,
   progressData: null,
   learningCurve: [],
-  bktSkillLevels: {},
+  bktSkillLevels: {},  // Bayesian Knowledge Tracing levels
   
-  // === View State ===
+  // === View State (new components) ===
   showTherapistDashboard: false,
   showAssessmentMode: false,
-  assessmentTypeToRun: 'baseline',
+  assessmentTypeToRun: 'baseline', // 'baseline', 'post_test', 'follow_up'
   showAchievements: false,
   
   // === Actions ===
   
+  /**
+   * Set user ID and username for tracking
+   */
   setUserId: (id, name) => set({ userId: id, username: name }),
+  
+  /**
+   * Set age group for normalized scoring
+   */
   setAgeGroup: (ageGroup) => set({ ageGroup }),
+  
+  /**
+   * Set game mode: audio-visual, visual-only, assessment
+   */
   setGameMode: (mode) => set({ gameMode: mode }),
+  
+  /**
+   * Set hearing profile (audiogram thresholds)
+   */
   setHearingProfile: (profile) => set({ hearingProfile: profile }),
+  
+  /**
+   * Toggle Therapist Dashboard view
+   */
   setShowTherapistDashboard: (show) => set({ showTherapistDashboard: show }),
+  
+  /**
+   * Launch assessment mode with specified type
+   */
   launchAssessment: (type = 'baseline') => set({ showAssessmentMode: true, assessmentTypeToRun: type }),
+  
+  /**
+   * Close assessment mode
+   */
   closeAssessment: () => set({ showAssessmentMode: false }),
+  
+  /**
+   * Toggle achievements gallery
+   */
   setShowAchievements: (show) => set({ showAchievements: show }),
+  
+  /**
+   * Set analytics session ID
+   */
   setSessionId: (id) => set({ sessionId: id }),
   
+  /**
+   * Update ML metrics from backend recommendation
+   */
   setMLMetrics: (metrics) => set({ 
     mlMetrics: {
       cognitive_load: metrics.cognitive_load || 0,
@@ -116,334 +128,267 @@ export const useGameStore = create((set, get) => ({
     }
   }),
 
-  // === Zone & Weather Actions ===
-  
-  cycleZone: () => {
-    const state = get()
-    const nextIdx = (state.currentZoneIndex + 1) % ENVIRONMENT_ZONES.length
-    devLog(`🌍 Zone changed to: ${ENVIRONMENT_ZONES[nextIdx].label}`)
-    set({ currentZoneIndex: nextIdx, currentZone: ENVIRONMENT_ZONES[nextIdx] })
-  },
-  
-  cycleWeather: () => {
-    const state = get()
-    // Only cycle to harder weather at higher levels
-    const availableCount = Math.min(WEATHER_TYPES.length, 1 + Math.floor(state.level / 2))
-    const nextIdx = (state.currentWeatherIndex + 1) % availableCount
-    devLog(`🌤️ Weather changed to: ${WEATHER_TYPES[nextIdx].label}`)
-    set({ currentWeatherIndex: nextIdx, currentWeather: WEATHER_TYPES[nextIdx] })
-  },
-  
-  // === Mission Actions ===
-  
-  setShowMissionSelect: (show) => set({ showMissionSelect: show }),
-  
-  startMission: (missionId) => {
-    const mission = MISSIONS.find(m => m.id === missionId)
-    if (!mission) return
-    devLog(`📋 Starting mission: ${mission.title}`)
-    set({ 
-      missionMode: true, 
-      currentMission: mission,
-      missionTrialIndex: 0,
-      missionStats: { score: 0, successes: 0, failures: 0, totalRT: 0, completed: 0, typesCorrect: new Set(), avgRT: 0 },
-      missionComplete: false,
-      missionStars: 0,
-      showMissionSelect: false,
-      // Start the game too
-      gameStarted: true, score: 0, level: 1, lives: 3, isGameOver: false, speedModifier: 1, isPaused: false, streak: 0
-    })
-  },
+  /**
+   * Initialize game session
+   */
+  startGame: () => set({ gameStarted: true, score: 0, level: 1, lives: 3, isGameOver: false, speedModifier: 1, isPaused: false }),
   
   /**
-   * Get the next scenario for mission mode.
-   * Returns { type, action } or null if mission complete.
+   * Stop game session, end analytics session, and reset state
    */
-  getNextMissionScenario: () => {
-    const state = get()
-    if (!state.missionMode || !state.currentMission) return null
-    
-    const mission = state.currentMission
-    if (state.missionTrialIndex >= mission.totalTrials) return null
-    
-    if (mission.scenarios) {
-      const type = mission.scenarios[state.missionTrialIndex]
-      const theme = DISASTER_THEMES[type]
-      return { type, action: theme?.action?.replace(/ [➡️⬅️⬇️🏠⏺️]/g, '').trim() || 'Respond' }
-    }
-    return null // Use ML recommendation
-  },
-  
-  completeMissionTrial: (success, reactionTime, scenarioType) => {
-    const state = get()
-    if (!state.missionMode) return
-    
-    const stats = { ...state.missionStats }
-    stats.completed += 1
-    if (success) {
-      stats.successes += 1
-      stats.score += 100
-      if (scenarioType) stats.typesCorrect = new Set([...stats.typesCorrect, scenarioType])
-    } else {
-      stats.failures += 1
-    }
-    stats.totalRT += (reactionTime || 0)
-    stats.avgRT = stats.totalRT / stats.completed
-    
-    const nextIdx = state.missionTrialIndex + 1
-    const isComplete = nextIdx >= state.currentMission.totalTrials
-    
-    if (isComplete) {
-      // Calculate stars
-      let stars = 0
-      const mission = state.currentMission
-      mission.stars.forEach(s => {
-        if (s.check) {
-          if (s.check(stats)) stars += 1
-        } else if (stats.score >= s.required) {
-          stars += 1
-        }
-      })
-      
-      const newCompleted = [...state.completedMissions]
-      if (!newCompleted.includes(mission.id)) newCompleted.push(mission.id)
-      
-      devLog(`📋 Mission complete! Stars: ${stars}`)
-      set({ 
-        missionStats: stats, 
-        missionTrialIndex: nextIdx, 
-        missionComplete: true, 
-        missionStars: stars,
-        completedMissions: newCompleted
-      })
-    } else {
-      set({ missionStats: stats, missionTrialIndex: nextIdx })
-    }
-  },
-  
-  exitMission: () => set({ 
-    missionMode: false, currentMission: null, missionTrialIndex: 0,
-    missionComplete: false, missionStars: 0, showMissionSelect: false
-  }),
-
-  // === Game Actions ===
-  
-  startGame: () => set({ 
-    gameStarted: true, score: 0, level: 1, lives: 3, isGameOver: false, 
-    speedModifier: 1, isPaused: false, streak: 0, bestStreak: 0, comboMilestone: null,
-    currentZoneIndex: 0, currentZone: ENVIRONMENT_ZONES[0],
-    currentWeatherIndex: 0, currentWeather: WEATHER_TYPES[0]
-  }),
-  
   stopGame: () => {
     const state = get()
+    // End analytics session if one exists
     if (state.sessionId) {
       fetch(`${API_URL}/analytics/end-session/${state.sessionId}`, {
         method: 'POST'
       }).catch(err => devWarn("Failed to end session", err))
     }
     set({ 
-      gameStarted: false, isPaused: false, isGameOver: false, lives: 3,
-      sessionId: null, emergencyActive: false, emergencyType: null,
-      emergencyAction: null, feedback: null, lane: 0, speedModifier: 1,
-      streak: 0, comboMilestone: null,
-      missionMode: false, currentMission: null, missionComplete: false
+      gameStarted: false, 
+      isPaused: false,
+      isGameOver: false,
+      lives: 3,
+      sessionId: null,
+      emergencyActive: false,
+      emergencyType: null,
+      emergencyAction: null,
+      feedback: null,
+      lane: 0,
+      speedModifier: 1
     })
   },
   
+  /**
+   * Toggle pause state
+   */
   setPaused: (paused) => set({ isPaused: paused }),
   
+  /**
+   * Update player lane position and auto-validate if emergency active
+   */
   setLane: (newLane) => {
     const oldLane = get().lane
     devLog(`🚗 Lane changed to: ${newLane}`)
     set({ lane: newLane })
+    // Check if correct lane for current emergency
     const state = get()
     if (state.emergencyActive && state.targetLane !== null) {
+      // If response is already locked, ignore further presses
       if (state.responseLocked) {
         devLog('🔒 Response already locked - ignoring lane change')
         return
       }
+      // Lock response on first press
       set({ responseLocked: true })
-      const direction = newLane - oldLane
+
+      // Validate by direction of movement, not just final position.
+      // This fixes the case where car is 2 lanes away from target
+      // (e.g. left lane pressing right only reaches center, not right lane).
+      const direction = newLane - oldLane // >0 = moved right, <0 = moved left, 0 = no movement
       let isCorrect = false
       if (newLane === state.targetLane) {
+        // Landed exactly on target (one step away, or already at target)
         isCorrect = true
       } else if (state.targetLane === 1 && direction > 0) {
+        // Target is RIGHT and user moved right (correct intent)
         isCorrect = true
       } else if (state.targetLane === -1 && direction < 0) {
+        // Target is LEFT and user moved left (correct intent)
         isCorrect = true
       }
-      devLog(`🎯 Checking lane: old=${oldLane}, new=${newLane}, target=${state.targetLane}, correct=${isCorrect}`)
+
+      devLog(`🎯 Checking lane: old=${oldLane}, new=${newLane}, target=${state.targetLane}, direction=${direction}, correct=${isCorrect}`)
       if (isCorrect) {
+        // Snap car to the correct target lane position
         set({ lane: state.targetLane })
+        devLog('✅ CORRECT LANE! Completing emergency as success')
         state.completeEmergency(true)
       } else {
+        devLog('❌ WRONG LANE! Completing emergency as failure')
         state.completeEmergency(false)
       }
     }
   },
 
+  /**
+   * Update player speed and auto-validate if emergency active
+   */
   setSpeed: (speed) => {
     devLog(`⚡ Speed changed to: ${speed}`)
     set({ speedModifier: speed })
+    // Check if correct speed for current emergency
     const state = get()
     if (state.emergencyActive && state.targetSpeed !== null) {
+      // If response is already locked, ignore further presses
       if (state.responseLocked) {
         devLog('🔒 Response already locked - ignoring speed change')
         return
       }
+      // Lock response on first press
       set({ responseLocked: true })
+      devLog(`🎯 Checking speed target: current=${speed}, target=${state.targetSpeed}`)
       if (state.targetSpeed === speed) {
+        devLog('✅ CORRECT SPEED! Completing emergency as success')
         state.completeEmergency(true)
       } else {
+        devLog('❌ WRONG SPEED! Completing emergency as failure')
         state.completeEmergency(false)
       }
     }
   },
 
+  /**
+   * Trigger new emergency scenario
+   * @param {string} type - Scenario type (tsunami_siren, earthquake_alarm, etc.)
+   * @param {string} action - Required action (Move Right, Stop, etc.)
+   */
   triggerEmergency: (type, action) => {
-    devLog(`🎯 STORE.triggerEmergency: TYPE="${type}", ACTION="${action}"`)
+    devLog(`🎯 STORE.triggerEmergency called with TYPE: "${type}", ACTION: "${action}"`)
     
     let tLane = null
     let tSpeed = null
 
-    // Crisis scenario mapping — each sound has a unique action
-    if (type === 'tsunami_siren') { tLane = 1; tSpeed = null }
-    else if (type === 'earthquake_alarm') { tSpeed = 0; tLane = null }
-    else if (type === 'flood_warning') { tSpeed = 0.5; tLane = null }
-    else if (type === 'air_raid_siren') { tLane = 0; tSpeed = null }
-    else if (type === 'building_fire_alarm') { tLane = -1; tSpeed = null }
-    else {
-      // Fallback to action-based mapping
-      if (action === 'Move Right') tLane = 1
-      if (action === 'Move Left') tLane = -1
-      if (action === 'Stop') tSpeed = 0
-      if (action === 'Slow Down' || action === 'Find Safe Place') tSpeed = 0.5
-      if (action === 'Stay Center') tLane = 0
-    }
+    // Map actions to required lane/speed targets
+    if (action === 'Move Right') tLane = 1
+    if (action === 'Move Left') tLane = -1
+    if (action === 'Stop') tSpeed = 0
+    if (action === 'Slow Down') tSpeed = 0.5
+    if (action === 'Find Safe Place') tSpeed = 0.5
+    if (action === 'Stay Center') tLane = 0
+    // Crisis scenario overrides — each sound has a unique action
+    if (type === 'tsunami_siren') { tLane = 1; tSpeed = null }       // Move Right (evacuate to high ground)
+    if (type === 'earthquake_alarm') { tSpeed = 0; tLane = null }    // Stop (Drop, Cover, Hold On)
+    if (type === 'flood_warning') { tSpeed = 0.5; tLane = null }     // Find Safe Place (seek shelter)
+    if (type === 'air_raid_siren') { tLane = 0; tSpeed = null }      // Stay Center (take cover in place)
+    if (type === 'building_fire_alarm') { tLane = -1; tSpeed = null } // Move Left (evacuate building)
 
+    // Trigger haptic feedback for hearing-impaired accessibility
+    // Uses screen-shake fallback on desktop/laptop where vibration is unavailable
     const theme = DISASTER_THEMES[type]
     triggerHaptic(theme ? theme.haptic : [200], theme ? theme.glow : 'rgba(255,165,0,0.6)')
 
     set({ 
-      emergencyActive: true, emergencyType: type, emergencyAction: action,
-      targetLane: tLane, targetSpeed: tSpeed, feedback: null,
-      responseLocked: false, emergencyStartTime: performance.now()
+      emergencyActive: true, 
+      emergencyType: type, 
+      emergencyAction: action,
+      targetLane: tLane,
+      targetSpeed: tSpeed,
+      feedback: null,
+      responseLocked: false,  // Reset lock for new emergency
+      emergencyStartTime: performance.now()  // High-precision RT measurement
     })
+    
+    devLog(`✅ Emergency state updated - emergencyType set to: "${type}"`)
   },
   
+  /**
+   * Complete emergency attempt and send result to backend
+   * @param {boolean} success - Whether user responded correctly
+   */
   completeEmergency: (success) => {
     const state = get()
     
-    if (!state.emergencyActive) return
+    // Prevent multiple completions of the same emergency
+    if (!state.emergencyActive) {
+      devLog('⚠️ CompletEmergency called but no emergency active - ignoring')
+      return
+    }
     
     devLog(`✅ Completing emergency - Success: ${success}`)
     
+    // Calculate actual reaction time using high-precision timer
     const reactionTime = state.emergencyStartTime 
       ? parseFloat(((performance.now() - state.emergencyStartTime) / 1000).toFixed(3))
       : 0
     
     devLog(`⏱️ Reaction time: ${reactionTime}s`)
     
+    // Haptic feedback for result (screen-shake on desktop)
     triggerHaptic(
       success ? [100, 50, 100] : [500],
       success ? 'rgba(45,198,83,0.6)' : 'rgba(231,76,60,0.6)'
     )
     
-    // Track mission progress
-    if (state.missionMode) {
-      state.completeMissionTrial(success, reactionTime, state.emergencyType)
-    }
-    
-    // Send attempt to backend
+    // Send attempt to backend for ML processing
     if (state.userId) {
-      fetch(`${API_URL}/attempts/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: state.userId,
-          scenario_type: state.emergencyType,
-          success: success,
-          reaction_time: reactionTime,
-          difficulty_level: state.level,
-          noise_level: state.mlMetrics.noise_level,
-          speed_modifier: state.mlMetrics.speed_modifier,
-          game_mode: state.gameMode
-        })
-      }).catch(err => devWarn("Failed to record attempt", err))
+        fetch(`${API_URL}/attempts/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: state.userId,
+                scenario_type: state.emergencyType,
+                success: success,
+                reaction_time: reactionTime,
+                difficulty_level: state.level,
+                noise_level: state.mlMetrics.noise_level,
+                speed_modifier: state.mlMetrics.speed_modifier,
+                game_mode: state.gameMode
+            })
+        }).catch(err => devWarn("Failed to record attempt", err))
     }
 
+    // Update game state based on success/failure
     if (success) {
-      // === Streak & Combo Logic ===
-      const newStreak = state.streak + 1
-      const newBest = Math.max(newStreak, state.bestStreak)
-      
-      // Find the highest milestone reached
-      let milestone = null
-      for (let i = COMBO_MILESTONES.length - 1; i >= 0; i--) {
-        if (newStreak >= COMBO_MILESTONES[i].streak) {
-          milestone = COMBO_MILESTONES[i]
-          break
-        }
-      }
-      
-      // Calculate score with combo multiplier
-      const multiplier = milestone ? milestone.multiplier : 1.0
-      const pointsEarned = Math.round(100 * multiplier)
-      const newScore = state.score + pointsEarned
-      const newLevel = Math.floor(newScore / 500) + 1
-      
-      // Award bonus life at 10x streak
-      let newLives = state.lives
-      if (milestone?.bonusLife && newStreak === 10) {
-        newLives = Math.min(state.lives + 1, 5) // Cap at 5 lives
-        devLog('🎁 BONUS LIFE awarded for 10x streak!')
-      }
-      
-      devLog(`🔥 Streak: ${newStreak}, Multiplier: ${multiplier}x, Points: ${pointsEarned}`)
+      const newScore = state.score + 100
+      const newLevel = Math.floor(newScore / 500) + 1  // Level up every 500 points
       
       set({ 
-        emergencyActive: false, emergencyType: null, targetLane: null,
-        targetSpeed: null, emergencyStartTime: null, responseLocked: false,
-        score: newScore, level: newLevel, speedModifier: 1,
-        streak: newStreak, bestStreak: newBest,
-        comboMilestone: milestone,
-        comboAnimationKey: state.comboAnimationKey + 1,
-        lives: newLives,
-        feedback: milestone ? `${milestone.emoji} ${milestone.label} +${pointsEarned}` : 'Correct! 🎉'
+        emergencyActive: false, 
+        emergencyType: null, 
+        targetLane: null,
+        targetSpeed: null,
+        emergencyStartTime: null,
+        responseLocked: false,
+        score: newScore,
+        level: newLevel,
+        speedModifier: 1,  // Reset to normal speed
+        feedback: 'Correct! 🎉'
       })
     } else {
-      // Failure — reset streak
       const currentLives = state.lives - 1
       const gameOver = currentLives <= 0
       
       set({ 
-        emergencyActive: false, emergencyType: null, targetLane: null,
-        targetSpeed: null, emergencyStartTime: null, responseLocked: false,
-        speedModifier: 1, lives: currentLives, isGameOver: gameOver,
-        streak: 0, comboMilestone: null,
+        emergencyActive: false, 
+        emergencyType: null, 
+        targetLane: null,
+        targetSpeed: null,
+        emergencyStartTime: null,
+        responseLocked: false,
+        speedModifier: 1,
+        lives: currentLives,
+        isGameOver: gameOver,
         feedback: gameOver ? null : 'Missed! ❌'
       })
       
       if (gameOver) {
+        // End analytics session on game over
         if (state.sessionId) {
           fetch(`${API_URL}/analytics/end-session/${state.sessionId}`, {
             method: 'POST'
           }).catch(err => devWarn('Failed to end session', err))
         }
-        return
+        return // Skip feedback auto-clear — game over screen takes over
       }
     }
     
+    // Auto-clear feedback (longer for young readers)
     setTimeout(() => set({ feedback: null }), TOKENS.feedbackDuration)
   },
 
+  /**
+   * Clear emergency when time runs out (treated as failure)
+   */
   clearEmergency: () => {
     devLog('⏰ clearEmergency called (timeout)')
     const state = get()
     if (state.emergencyActive) {
-      devLog('❌ Marking emergency as FAILED due to timeout')
-      state.completeEmergency(false)
+        devLog('❌ Marking emergency as FAILED due to timeout')
+        state.completeEmergency(false)  // Timeout = failure
+    } else {
+      devLog('ℹ️ No active emergency to clear')
     }
   },
 }))
+

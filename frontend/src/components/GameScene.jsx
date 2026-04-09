@@ -1,11 +1,11 @@
-import React, { useRef, useEffect, useMemo, memo, useState } from 'react'
+import React, { useRef, useEffect, useMemo, memo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { useGameStore } from '../store'
-import { AGE_SPEED, ENVIRONMENT_ZONES } from '../config'
+import { AGE_SPEED } from '../config'
 import * as THREE from 'three'
-import { playProceduralDistractor } from './AudioProcessor'
 
 // ─── SHARED SPEED HOOK ─────────────────────────────────
+// Single speed calculation instead of duplicating in Wheel×4, Road, InfiniteCity
 function useSpeedValues() {
   const level = useGameStore((s) => s.level)
   const speedModifier = useGameStore((s) => s.speedModifier)
@@ -22,7 +22,7 @@ const PI = Math.PI
 
 // --- ASSETS & COMPONENTS ---
 
-const Tree = memo(function Tree({ position, color }) {
+const Tree = memo(function Tree({ position }) {
   return (
     <group position={position}>
       <mesh position={[0, 1, 0]}>
@@ -31,26 +31,8 @@ const Tree = memo(function Tree({ position, color }) {
       </mesh>
       <mesh position={[0, 2.5, 0]}>
         <dodecahedronGeometry args={[1.5]} />
-        <meshStandardMaterial color={color || '#2d5a27'} roughness={0.8} />
+        <meshStandardMaterial color="#2d5a27" roughness={0.8} />
       </mesh>
-    </group>
-  )
-})
-
-// Palm tree for coastal zone
-const PalmTree = memo(function PalmTree({ position }) {
-  return (
-    <group position={position}>
-      <mesh position={[0, 2, 0]}>
-        <cylinderGeometry args={[0.15, 0.25, 4, 6]} />
-        <meshStandardMaterial color="#8B7355" />
-      </mesh>
-      {[0, 1.2, 2.4, 3.6, 4.8].map((rot, i) => (
-        <mesh key={i} position={[Math.cos(rot) * 0.8, 4, Math.sin(rot) * 0.8]} rotation={[0.8, rot, 0]}>
-          <boxGeometry args={[0.8, 0.05, 2]} />
-          <meshStandardMaterial color="#228B22" />
-        </mesh>
-      ))}
     </group>
   )
 })
@@ -124,6 +106,7 @@ const Building = memo(function Building({ position, size, color, type }) {
         <boxGeometry args={size} />
         <meshStandardMaterial color={wallColor} metalness={type === 0 ? 0.8 : 0.1} roughness={type === 0 ? 0.1 : 0.8} />
       </mesh>
+      {/* Limited windows for performance */}
       {type === 0 ? (
         Array.from({ length: windowRows }).map((_, i) => (
            <mesh key={i} position={[0, i * 2 + 1, size[2]/2 + 0.01]}>
@@ -145,55 +128,39 @@ const Building = memo(function Building({ position, size, color, type }) {
   )
 })
 
-// CityBlock — now uses zone colors for variety
-const CityBlock = memo(function CityBlock({ zOffset, zone }) {
+const CityBlock = memo(function CityBlock({ zOffset }) {
   const elements = useMemo(() => {
     const items = []
-    const colors = zone?.buildingColors || ['#bdc3c7', '#95a5a6', '#7f8c8d']
-    const treeColor = zone?.treeColor || '#2d5a27'
-    const isCoastal = zone?.id === 'coastal'
-    
     // Left side building
     items.push({ 
-      type: 'building', 
-      props: { 
-        position: [-18, 0, 0], 
-        size: [8, 8 + Math.random() * 12, 8], 
-        color: colors[Math.floor(Math.random() * colors.length)], 
-        style: Math.random() > 0.5 ? 0 : 1 
-      } 
+        type: 'building', 
+        props: { position: [-18, 0, 0], size: [8, 8 + Math.random() * 12, 8], color: '#e74c3c', style: Math.random() > 0.5 ? 0 : 1 } 
     })
     // Right side building
     items.push({ 
-      type: 'building', 
-      props: { 
-        position: [18, 0, 0], 
-        size: [8, 8 + Math.random() * 12, 8], 
-        color: colors[Math.floor(Math.random() * colors.length)], 
-        style: Math.random() > 0.5 ? 0 : 1 
-      } 
+        type: 'building', 
+        props: { position: [18, 0, 0], size: [8, 8 + Math.random() * 12, 8], color: '#f1c40f', style: Math.random() > 0.5 ? 0 : 1 } 
     })
     
-    // Decorations — vary by zone
-    // Left sidewalk
-    items.push({ type: isCoastal ? 'palm' : 'tree', props: { position: [-12, 0, -3], color: treeColor } })
+    // Reduced decoration — 1 tree + 1 lamp + 1 human per side
+    // Left Sidewalk
+    items.push({ type: 'tree', props: { position: [-12, 0, -3] } })
     items.push({ type: 'lamp', props: { position: [-11, 0, 4] } })
     items.push({ type: 'human', props: { position: [-13, 0, 0], color: Math.random() > 0.5 ? '#3498db' : '#e67e22', speed: 0.5 + Math.random() } })
 
-    // Right sidewalk
-    items.push({ type: isCoastal ? 'palm' : 'tree', props: { position: [12, 0, -3], color: treeColor } })
+    // Right Sidewalk
+    items.push({ type: 'tree', props: { position: [12, 0, -3] } })
     items.push({ type: 'lamp', props: { position: [11, 0, 4] } })
     items.push({ type: 'human', props: { position: [13, 0, 0], color: Math.random() > 0.5 ? '#2ecc71' : '#e74c3c', speed: 0.5 + Math.random() } })
 
     return items
-  }, [zone])
+  }, [])
 
   return (
     <group position={[0, 0, zOffset]}>
       {elements.map((el, i) => {
         if (el.type === 'building') return <Building key={i} {...el.props} type={el.props.style} />
         if (el.type === 'tree') return <Tree key={i} {...el.props} />
-        if (el.type === 'palm') return <PalmTree key={i} position={el.props.position} />
         if (el.type === 'lamp') return <StreetLamp key={i} {...el.props} />
         if (el.type === 'human') return <Human key={i} {...el.props} />
         return null
@@ -205,31 +172,6 @@ const CityBlock = memo(function CityBlock({ zOffset, zone }) {
 function InfiniteCity() {
   const group = useRef()
   const { speed, isPaused } = useSpeedValues()
-  const currentZone = useGameStore(s => s.currentZone)
-  const cycleZone = useGameStore(s => s.cycleZone)
-  const cycleWeather = useGameStore(s => s.cycleWeather)
-  const gameStarted = useGameStore(s => s.gameStarted)
-  
-  // Zone cycling timer — change zone every ~45 seconds
-  useEffect(() => {
-    if (!gameStarted) return
-    const interval = setInterval(() => {
-      cycleZone()
-    }, 45000)
-    return () => clearInterval(interval)
-  }, [gameStarted, cycleZone])
-  
-  // Weather cycling timer — change weather every ~60 seconds (starts after 30s)
-  useEffect(() => {
-    if (!gameStarted) return
-    const timeout = setTimeout(() => {
-      const interval = setInterval(() => {
-        cycleWeather()
-      }, 60000)
-      return () => clearInterval(interval)
-    }, 30000)
-    return () => clearTimeout(timeout)
-  }, [gameStarted, cycleWeather])
   
   useFrame((state, delta) => {
     if (isPaused) return
@@ -242,7 +184,7 @@ function InfiniteCity() {
   return (
     <group ref={group}>
       {[0, 1, 2, 3, 4].map((i) => (
-        <CityBlock key={i} zOffset={-i * 20} zone={currentZone} />
+        <CityBlock key={i} zOffset={-i * 20} />
       ))}
     </group>
   )
@@ -256,6 +198,7 @@ function Car() {
   const isPaused = useGameStore((state) => state.isPaused)
   const isGameOver = useGameStore((state) => state.isGameOver)
   
+  // Pass speed to Wheel components via ref (eliminates 16 store subscriptions)
   const { speed } = useSpeedValues()
   const speedRef = useRef(speed)
   const pausedRef = useRef(isPaused)
@@ -279,9 +222,10 @@ function Car() {
       if (e.key === 'ArrowLeft' || e.key === 'a') setLane(Math.max(-1, lane - 1))
       if (e.key === 'ArrowRight' || e.key === 'd') setLane(Math.min(1, lane + 1))
       if (e.key === 'ArrowUp' || e.key === 'w') {
+        // ArrowUp also confirms "Stay Center" for air_raid_siren
         const state = useGameStore.getState()
         if (state.emergencyActive && state.targetLane === 0 && !state.responseLocked) {
-          setLane(lane)
+          setLane(lane) // Re-trigger lane check at current position
         } else {
           setSpeed(1)
         }
@@ -293,7 +237,7 @@ function Car() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [lane, setLane, setSpeed, isPaused, isGameOver])
 
-  // Touch controls
+  // Touch controls — swipe left/right for lane, tap zones for speed
   useEffect(() => {
     let touchStartX = null
     const handleTouchStart = (e) => {
@@ -327,7 +271,7 @@ function Car() {
 
   return (
     <group ref={mesh} position={[0, 0, 0]}>
-      {/* Chassis */}
+      {/* Chassis — brighter child-friendly colour */}
       <mesh position={[0, 0.6, 0]}>
         <boxGeometry args={[1.8, 0.5, 4]} />
         <meshStandardMaterial color="#FF6B35" metalness={0.6} roughness={0.4} />
@@ -339,7 +283,7 @@ function Car() {
         <meshStandardMaterial color="#333" metalness={0.8} roughness={0.2} />
       </mesh>
       
-      {/* Wheels */}
+      {/* Wheels — use refs instead of store subscriptions */}
       <Wheel position={[-0.9, 0.35, 1.2]} speedRef={speedRef} pausedRef={pausedRef} />
       <Wheel position={[0.9, 0.35, 1.2]} speedRef={speedRef} pausedRef={pausedRef} />
       <Wheel position={[-0.9, 0.35, -1.2]} speedRef={speedRef} pausedRef={pausedRef} />
@@ -394,8 +338,6 @@ function Wheel({ position, speedRef, pausedRef }) {
 function Road() {
   const roadRef = useRef()
   const { speed, isPaused } = useSpeedValues()
-  const currentZone = useGameStore(s => s.currentZone)
-  const roadColor = currentZone?.roadColor || '#2c3e50'
   
   useFrame((state, delta) => {
     if (isPaused) return
@@ -409,7 +351,7 @@ function Road() {
     <group ref={roadRef}>
       <mesh rotation={[NEG_HALF_PI, 0, 0]} position={[0, 0, -60]}>
         <planeGeometry args={[20, 180]} />
-        <meshStandardMaterial color={roadColor} roughness={0.8} />
+        <meshStandardMaterial color="#2c3e50" roughness={0.8} />
       </mesh>
       
       {[-3.5, 3.5].map((x, i) => (
@@ -419,7 +361,7 @@ function Road() {
         </mesh>
       ))}
       
-      {/* Center dashed line */}
+      {/* Center dashed line — reduced from 15 to 10 */}
       {Array.from({ length: 10 }).map((_, i) => (
         <mesh key={i} rotation={[NEG_HALF_PI, 0, 0]} position={[0, 0.02, -i * 12]}>
           <planeGeometry args={[0.2, 5]} />
@@ -439,35 +381,7 @@ function Road() {
   )
 }
 
-// Zone indicator badge (shows current zone name)
-function ZoneBadge() {
-  const currentZone = useGameStore(s => s.currentZone)
-  if (!currentZone) return null
-  
-  // This is rendered as HTML overlay, not 3D — handled in WeatherEffects
-  return null
-}
-
 export default function GameScene() {
-  const currentZone = useGameStore(s => s.currentZone)
-  const isPaused = useGameStore(s => s.isPaused)
-  const emergencyActive = useGameStore(s => s.emergencyActive)
-  const groundColor = currentZone?.groundColor || '#1a1a1a'
-
-  // Procedural Distractor Audio Interval
-  useEffect(() => {
-    let distractorInterval = null;
-    if (!isPaused) {
-      distractorInterval = setInterval(() => {
-        // Play distractor noise only if no actual crisis is active
-        if (!emergencyActive && Math.random() > 0.5) {
-          playProceduralDistractor();
-        }
-      }, 15000);
-    }
-    return () => clearInterval(distractorInterval);
-  }, [isPaused, emergencyActive]);
-
   return (
     <>
       <Car />
@@ -475,7 +389,7 @@ export default function GameScene() {
       <InfiniteCity />
       <mesh rotation={[NEG_HALF_PI, 0, 0]} position={[0, -0.1, 0]}>
         <planeGeometry args={[200, 200]} />
-        <meshStandardMaterial color={groundColor} />
+        <meshStandardMaterial color="#1a1a1a" />
       </mesh>
     </>
   )
