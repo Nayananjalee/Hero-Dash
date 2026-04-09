@@ -215,8 +215,7 @@ steps:
           --timeout 3600 \
           --max-instances 100 \
           --min-instances 0 \
-          --port 8080 \
-          --set-env-vars PORT=8080 && echo "✅ Frontend deployed successfully" && exit 0
+          --port 8080 && echo "✅ Frontend deployed successfully" && exit 0
         echo "⏳ Frontend deploy retry $$i/5 after failure"
         sleep $$((i * 5))
       done
