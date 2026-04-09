@@ -61,7 +61,13 @@ finally:
 app = FastAPI()
 
 # Get allowed origins from environment variable or use defaults
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
+ALLOWED_ORIGINS_STR = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000")
+# Strip whitespace from each origin
+ALLOWED_ORIGINS = [origin.strip() for origin in ALLOWED_ORIGINS_STR.split(",") if origin.strip()]
+if not ALLOWED_ORIGINS:
+    ALLOWED_ORIGINS = ["http://localhost:5173", "http://localhost:3000"]
+
+print(f"📍 CORS Allowed Origins: {ALLOWED_ORIGINS}")
 
 # Configure CORS to allow frontend connections
 app.add_middleware(
@@ -88,7 +94,12 @@ def get_db():
 @app.get("/")
 def read_root():
     """API health check endpoint"""
-    return {"message": "Emergency Response Hero API"}
+    return {"message": "Emergency Response Hero API", "status": "online"}
+
+@app.get("/health")
+def health_check():
+    """Cloud Run health check endpoint - must return 200 OK"""
+    return {"status": "healthy", "service": "Hero Dash Backend"}
 
 @app.post("/users/", response_model=schemas.User)
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):

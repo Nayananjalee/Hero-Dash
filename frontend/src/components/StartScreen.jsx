@@ -268,6 +268,13 @@ export default function StartScreen() {
   const handleStart = async () => {
     if (!name.trim()) return alert("Please enter your name")
     
+    // Check if API URL is configured
+    if (!API_URL) {
+      devWarn("❌ API_URL not configured - cannot connect to backend")
+      alert("⚠️ Backend URL not configured!\n\nMake sure VITE_API_URL environment variable is set.\n\nFor Google Cloud:\n- Frontend should have VITE_API_URL=<backend-url>\n- Backend should have ALLOWED_ORIGINS=<frontend-url>")
+      return
+    }
+    
     // Unlock audio context
     const unlockAudio = new Audio('/sounds/engine_loop.mp3')
     unlockAudio.volume = 0.1
@@ -280,6 +287,7 @@ export default function StartScreen() {
 
     setLoading(true)
     try {
+      devLog(`📡 Connecting to: ${API_URL}/users/`)
       const response = await fetch(`${API_URL}/users/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -289,14 +297,28 @@ export default function StartScreen() {
           hearing_level: hearingLevel
         })
       })
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Backend error (${response.status}): ${errorText.substring(0, 100)}`)
+      }
+      
       const data = await response.json()
+      devLog(`✅ User created: ${data.id}`)
       setUserId(data.id, data.username)
       startGame()
     } catch (error) {
-      devWarn("Login failed", error)
-      alert("Connection failed. Starting offline mode.")
-      setUserId(-1, name || 'offline_player')
-      startGame()
+      const errorMsg = error?.message || String(error)
+      devWarn("❌ Connection failed:", errorMsg)
+      console.error("Full error:", error)
+      
+      // Show user-friendly error with debugging info
+      alert(
+        `❌ Cannot connect to backend\n\nError: ${errorMsg}\n\nAPI URL: ${API_URL}\n\nPlease check:\n` +
+        `1. Is the backend service running?\n` +
+        `2. Is ALLOWED_ORIGINS configured on backend?\n` +
+        `3. Check browser console for more details`
+      )
     } finally {
       setLoading(false)
     }
@@ -304,19 +326,34 @@ export default function StartScreen() {
 
   const handleDashboard = async () => {
     if (!name.trim()) return alert("Please enter your name (කරුණාකර ඔබේ නම ඇතුළත් කරන්න)")
+    
+    if (!API_URL) {
+      alert("⚠️ Backend URL not configured!")
+      return
+    }
+    
     setLoading(true)
     try {
+      devLog(`📡 Connecting to: ${API_URL}/users/`)
       const response = await fetch(`${API_URL}/users/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: name, age_group: ageGroup, hearing_level: hearingLevel })
       })
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Backend error (${response.status}): ${errorText.substring(0, 100)}`)
+      }
+      
       const data = await response.json()
+      devLog(`✅ User created: ${data.id}`)
       setUserId(data.id, data.username)
       setShowDashboard(true)
     } catch (error) {
-      devWarn("Login failed", error)
-      alert("Connection failed. Cannot load dashboard.")
+      const errorMsg = error?.message || String(error)
+      devWarn("❌ Dashboard load failed:", errorMsg)
+      alert(`❌ Cannot load dashboard\n\nError: ${errorMsg}\n\nAPI URL: ${API_URL}`)
     } finally {
       setLoading(false)
     }
@@ -325,16 +362,34 @@ export default function StartScreen() {
   // Shared function to register user for advanced actions
   const registerAndDo = async (action) => {
     if (!name.trim()) return alert("Please enter your name first")
+    
+    if (!API_URL) {
+      alert("⚠️ Backend URL not configured!")
+      return
+    }
+    
     setLoading(true)
     try {
+      devLog(`📡 Connecting to: ${API_URL}/users/`)
       const response = await fetch(`${API_URL}/users/`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: name, age_group: ageGroup, hearing_level: hearingLevel })
       })
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Backend error (${response.status})`)
+      }
+      
       const data = await response.json()
+      devLog(`✅ User registered: ${data.id}`)
       setUserId(data.id, data.username)
       action()
-    } catch (error) { alert("Connection failed.") }
+    } catch (error) { 
+      devWarn("❌ Registration failed:", error?.message || error)
+      alert(`❌ Connection failed: ${error?.message || 'Unknown error'}\n\nAPI: ${API_URL}`) 
+    }
     finally { setLoading(false) }
   }
 

@@ -106,13 +106,23 @@ steps:
       if [ -z "$$RUNTIME_SA" ]; then
         PROJECT_NUMBER=$$(gcloud projects describe $PROJECT_ID --format='value(projectNumber)')
         if [ -z "$$PROJECT_NUMBER" ]; then
-          echo "Could not resolve project number for runtime service account"
+          echo "❌ Could not resolve project number for runtime service account"
           exit 1
         fi
         RUNTIME_SA="$$PROJECT_NUMBER-compute@developer.gserviceaccount.com"
       fi
-      echo "Using runtime service account: $$RUNTIME_SA"
+      echo "🔐 Using runtime service account: $$RUNTIME_SA"
+      
+      # Verify DATABASE_URL secret exists
+      if ! gcloud secrets describe ${_DATABASE_URL_SECRET} >/dev/null 2>&1; then
+        echo "❌ FATAL: Secret ${_DATABASE_URL_SECRET} does not exist"
+        echo "📝 Create it with: gcloud secrets create ${_DATABASE_URL_SECRET} --replication-policy=automatic"
+        exit 1
+      fi
+      echo "✅ Database secret verified"
+      
       for i in 1 2 3 4 5; do
+        echo "🚀 Backend deploy attempt $$i/5..."
         gcloud run deploy ${_BACKEND_SERVICE} \
           --image ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_BACKEND_SERVICE}:$COMMIT_SHA \
           --region ${_REGION} \
@@ -123,12 +133,17 @@ steps:
           --command python \
           --args=-m,uvicorn,main:app,--host,0.0.0.0,--port,8080 \
           --memory 1Gi \
+          --cpu 1 \
+          --timeout 3600 \
+          --max-instances 100 \
+          --min-instances 0 \
           --set-secrets DATABASE_URL=${_DATABASE_URL_SECRET}:latest \
-          --set-env-vars PYTHONUNBUFFERED=1 && exit 0
-        echo "Backend deploy retry $$i/5 after conflict or transient failure"
+          --set-env-vars PYTHONUNBUFFERED=1,ALLOWED_ORIGINS=http://localhost:5173 \
+          --health-check-disable=false && echo "✅ Backend deployed successfully" && exit 0
+        echo "⏳ Backend deploy retry $$i/5 after failure"
         sleep $$((i * 5))
       done
-      echo "Backend deploy failed after retries"
+      echo "❌ Backend deploy failed after retries"
       exit 1
 
 - name: gcr.io/google.com/cloudsdktool/cloud-sdk
@@ -137,9 +152,14 @@ steps:
   args:
     - -c
     - |
+      echo "📍 Getting backend service URL..."
       BACKEND_URL=$$(gcloud run services describe ${_BACKEND_SERVICE} --region ${_REGION} --format='value(status.url)')
+      if [ -z "$$BACKEND_URL" ]; then
+        echo "❌ Could not get backend URL"
+        exit 1
+      fi
       echo "$$BACKEND_URL" > /workspace/backend_url.txt
-      echo "Backend URL: $$BACKEND_URL"
+      echo "✅ Backend URL: $$BACKEND_URL"
 
 - name: gcr.io/cloud-builders/docker
   id: build-frontend-image
@@ -148,10 +168,21 @@ steps:
     - -c
     - |
       BACKEND_URL=$$(cat /workspace/backend_url.txt)
+      if [ -z "$$BACKEND_URL" ]; then
+        echo "❌ Backend URL is empty!"
+        exit 1
+      fi
+      echo "🏗️  Building frontend with VITE_API_URL=$$BACKEND_URL"
       docker build \
         -t ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_FRONTEND_SERVICE}:$COMMIT_SHA \
-        --build-arg REACT_APP_API_URL=$$BACKEND_URL \
+        --build-arg VITE_API_URL=$$BACKEND_URL \
         ./frontend
+      if [ $? -eq 0 ]; then
+        echo "✅ Frontend image built successfully"
+      else
+        echo "❌ Frontend build failed"
+        exit 1
+      fi
 
 - name: gcr.io/cloud-builders/docker
   id: push-frontend-image
@@ -174,29 +205,66 @@ steps:
     - -c
     - |
       for i in 1 2 3 4 5; do
+        echo "🚀 Frontend deploy attempt $$i/5..."
         gcloud run deploy ${_FRONTEND_SERVICE} \
           --image ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/${_FRONTEND_SERVICE}:$COMMIT_SHA \
           --region ${_REGION} \
           --platform managed \
           --allow-unauthenticated \
-          --memory 512Mi && exit 0
-        echo "Frontend deploy retry $$i/5 after transient failure"
+          --memory 512Mi \
+          --cpu 1 \
+          --timeout 3600 \
+          --max-instances 100 \
+          --min-instances 0 \
+          --port 8080 \
+          --set-env-vars PORT=8080 && echo "✅ Frontend deployed successfully" && exit 0
+        echo "⏳ Frontend deploy retry $$i/5 after failure"
         sleep $$((i * 5))
       done
-      echo "Frontend deploy failed after retries"
+      echo "❌ Frontend deploy failed after retries"
       exit 1
 
 - name: gcr.io/google.com/cloudsdktool/cloud-sdk
-  id: set-cors
+  id: verify-and-configure-cors
   entrypoint: bash
   args:
     - -c
     - |
+      echo "🔗 Configuring CORS between backend and frontend..."
+      
+      # Get frontend URL
       FRONTEND_URL=$$(gcloud run services describe ${_FRONTEND_SERVICE} --region ${_REGION} --format='value(status.url)')
+      if [ -z "$$FRONTEND_URL" ]; then
+        echo "❌ Could not get frontend URL"
+        exit 1
+      fi
+      echo "📍 Frontend URL: $$FRONTEND_URL"
+      
+      # Set ALLOWED_ORIGINS on backend to include frontend URL
+      echo "🔐 Setting ALLOWED_ORIGINS on backend to: $$FRONTEND_URL"
       gcloud run services update ${_BACKEND_SERVICE} \
         --region ${_REGION} \
         --update-env-vars ALLOWED_ORIGINS=$$FRONTEND_URL
-      echo "Frontend URL: $$FRONTEND_URL"
+      
+      if [ $? -eq 0 ]; then
+        echo "✅ CORS configured successfully"
+      else
+        echo "❌ CORS configuration failed"
+        exit 1
+      fi
+      
+      # Verify configuration
+      echo "✅ Configuration Summary:"
+      echo "  Backend Service: ${_BACKEND_SERVICE}"
+      BACKEND_URL=$$(gcloud run services describe ${_BACKEND_SERVICE} --region ${_REGION} --format='value(status.url)')
+      echo "  Backend URL: $$BACKEND_URL"
+      echo "  Frontend Service: ${_FRONTEND_SERVICE}"
+      echo "  Frontend URL: $$FRONTEND_URL"
+      echo "  Database Secret: ${_DATABASE_URL_SECRET}"
+      echo ""
+      echo "🧪 Testing backend health endpoint..."
+      curl -s $$BACKEND_URL/health | head -c 100
+      echo ""
 
 timeout: 1800s
 

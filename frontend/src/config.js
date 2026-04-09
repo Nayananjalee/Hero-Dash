@@ -13,7 +13,34 @@
  */
 
 // ─── API ───────────────────────────────────────────────
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+// VITE_API_URL is set during build via --build-arg in Docker
+// Fallback to localhost for development
+// Use HTTPS in production (required for Cloud Run)
+const getAPIURL = () => {
+  if (import.meta.env.VITE_API_URL) {
+    const url = import.meta.env.VITE_API_URL.trim()
+    // Ensure URL has protocol
+    if (url && !url.startsWith('http')) {
+      return `https://${url}`
+    }
+    return url
+  }
+  // Development fallback
+  if (import.meta.env.DEV) {
+    return 'http://localhost:8000'
+  }
+  // Production fallback: Remove default that will fail in Cloud Run
+  // Let fetch requests fail with clear error messages for debugging
+  console.error('❌ VITE_API_URL not configured and not in development mode')
+  return ''
+}
+
+export const API_URL = getAPIURL()
+
+// Log for debugging (enable in production too for Cloud Run troubleshooting)
+console.info(`🔧 API_URL: ${API_URL || '(NOT CONFIGURED)'}`)
+console.info(`🔧 Environment: ${import.meta.env.DEV ? 'development' : 'production'}`)
+console.info(`🔧 VITE_API_URL env: ${import.meta.env.VITE_API_URL || '(not set)'}`)
 
 // ─── DEV LOGGING ───────────────────────────────────────
 // Set to false in production to eliminate console spam

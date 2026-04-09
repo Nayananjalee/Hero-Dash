@@ -22,9 +22,18 @@ load_dotenv()
 # Get database URL from environment or use SQLite as default for local dev
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./hero_dash.db")
 
+if not SQLALCHEMY_DATABASE_URL:
+    print("⚠️  WARNING: DATABASE_URL not set, using SQLite (ephemeral - data will be lost)")
+    SQLALCHEMY_DATABASE_URL = "sqlite:///./hero_dash.db"
+
 # Fix for Render/Heroku: they provide postgres:// but SQLAlchemy requires postgresql://
 if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
     SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    print("🔄 Converted postgres:// to postgresql://")
+
+# Validate URL format
+if not SQLALCHEMY_DATABASE_URL.startswith(("sqlite:", "postgresql:")):
+    print(f"⚠️  WARNING: DATABASE_URL has unexpected format: {SQLALCHEMY_DATABASE_URL[:20]}...")
 
 # Configure engine with appropriate settings
 if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):

@@ -2,11 +2,10 @@
  * Main App Component
  * ===================
  * Manages the 3D game scene, emergency overlays, and backend communication.
- * Polls backend for ML-powered scenario recommendations.
- * Supports mission mode with scripted scenario sequences.
+ * Polls backend for ML-powered scenario recommendations every 10 seconds.
  */
 
-import React, { useEffect, Suspense, useRef, useMemo } from 'react'
+import React, { useEffect, Suspense, useRef } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { Environment, Stars } from '@react-three/drei'
 import GameScene from './components/GameScene'
@@ -20,11 +19,8 @@ import GameHUD from './components/GameHUD'
 import AssessmentMode from './components/AssessmentMode'
 import AchievementSystem from './components/AchievementSystem'
 import TherapistDashboard from './components/TherapistDashboard'
-import ComboEffects from './components/ComboEffects'
-import WeatherEffects from './components/WeatherEffects'
-import MissionSystem from './components/MissionSystem'
 import { useGameStore } from './store'
-import { API_URL, devLog, devWarn, DISASTER_THEMES } from './config'
+import { API_URL, devLog, devWarn } from './config'
 
 function App() {
   const triggerEmergency = useGameStore((state) => state.triggerEmergency)
@@ -37,17 +33,11 @@ function App() {
   const assessmentTypeToRun = useGameStore((state) => state.assessmentTypeToRun)
   const showAchievements = useGameStore((state) => state.showAchievements)
   const isGameOver = useGameStore((state) => state.isGameOver)
-  const currentZone = useGameStore((state) => state.currentZone)
-  const missionMode = useGameStore((state) => state.missionMode)
-  const missionComplete = useGameStore((state) => state.missionComplete)
-  
-  const clearTimeoutId = useRef(null)
-  const emergencyRemainingMs = useRef(null)
-  const emergencyDurationMs = 8000
+  const clearTimeoutId = useRef(null) // Store timeout ID for clearing
+  const emergencyRemainingMs = useRef(null) // Track remaining ms when paused
+  const emergencyDurationMs = 8000 // 8 second emergency window
 
-  // Dynamic fog color based on zone
-  const fogColor = currentZone?.fogColor || '#101010'
-
+  // Helper: schedule (or re-schedule) the auto-clear timeout for an active emergency
   const scheduleAutoClear = (ms) => {
     if (clearTimeoutId.current) clearTimeout(clearTimeoutId.current)
     emergencyRemainingMs.current = ms
@@ -58,39 +48,26 @@ function App() {
       clearTimeoutId.current = null
       emergencyRemainingMs.current = null
     }, ms)
+    // Store start so we can compute remaining on next pause
     clearTimeoutId._startedAt = startedAt
   }
 
-  // Fetch emergency — handles both free-play and mission mode
+  // Fetch a new emergency from backend and trigger it
   const fetchAndTrigger = async () => {
-    const state = useGameStore.getState()
-    if (state.emergencyActive) return
-    if (state.missionComplete) return // Don't fetch if mission is done
-    
-    // === Mission Mode: use scripted scenario ===
-    if (state.missionMode && state.currentMission) {
-      const missionScenario = state.getNextMissionScenario()
-      if (!missionScenario) {
-        devLog('📋 Mission complete — no more scenarios')
-        return
-      }
-      
-      if (missionScenario.type) {
-        // Use scripted scenario
-        const theme = DISASTER_THEMES[missionScenario.type]
-        devLog(`📋 Mission scenario ${state.missionTrialIndex + 1}: ${missionScenario.type}`)
-        triggerEmergency(missionScenario.type, theme?.action || 'Respond')
-        scheduleAutoClear(emergencyDurationMs)
-        return
-      }
-      // If no scripted type, fall through to ML recommendation below
+    if (useGameStore.getState().emergencyActive) {
+      devLog('⏭️ Skipping - emergency already active')
+      return
     }
-    
-    // === Free-Play Mode: fetch from backend ML ===
     try {
-      devLog('🎯 Fetching emergency from backend...')
+      if (!API_URL) {
+        devWarn('❌ API_URL not configured - cannot fetch emergency')
+        throw new Error('API_URL not configured')
+      }
+      devLog('🎯 Fetching emergency from backend...', `${API_URL}/recommend/${userId}`)
       const response = await fetch(`${API_URL}/recommend/${userId}`)
-      if (!response.ok) throw new Error('Failed to fetch')
+      if (!response.ok) {
+        throw new Error(`Backend returned ${response.status}: ${response.statusText}`)
+      }
       const data = await response.json()
       devLog(`🚨 Emergency: ${data.type} - ${data.action}`)
 
@@ -105,35 +82,44 @@ function App() {
       triggerEmergency(data.type, data.action)
       scheduleAutoClear(emergencyDurationMs)
     } catch (error) {
-      devWarn('❌ Backend error or offline:', error)
+      devWarn('❌ Backend error or offline:', error?.message || error)
+      devWarn('🐛 API_URL was:', API_URL)
     }
   }
 
-  // Poll backend for scenario recommendations
+  // Poll backend for personalized scenario recommendations
   useEffect(() => {
     if (!gameStarted || !userId || isPaused || isGameOver) {
+      // --- PAUSING: save remaining time for the active emergency ---
       if (isPaused && clearTimeoutId.current && emergencyRemainingMs.current != null) {
         const elapsed = performance.now() - (clearTimeoutId._startedAt || 0)
         const remaining = Math.max(0, emergencyRemainingMs.current - elapsed)
         clearTimeout(clearTimeoutId.current)
         clearTimeoutId.current = null
         emergencyRemainingMs.current = remaining
+        devLog(`⏸️ Paused with ${(remaining / 1000).toFixed(1)}s remaining on emergency`)
       }
       return
     }
 
     devLog('✅ Starting emergency polling')
 
+    // --- UNPAUSING: if emergency is still active, resume its timer ---
     if (useGameStore.getState().emergencyActive && emergencyRemainingMs.current != null && emergencyRemainingMs.current > 0) {
+      devLog(`▶️ Resuming emergency timer with ${(emergencyRemainingMs.current / 1000).toFixed(1)}s`)
       scheduleAutoClear(emergencyRemainingMs.current)
     }
 
+    // First emergency after 3 seconds (only if none active)
     const firstTimeout = setTimeout(fetchAndTrigger, 3000)
+
+    // Subsequent emergencies every 10 seconds
     const interval = setInterval(fetchAndTrigger, 10000)
 
     return () => {
       clearTimeout(firstTimeout)
       clearInterval(interval)
+      // Don't clear the emergency timeout here — handled above on pause
     }
   }, [gameStarted, userId, isPaused, isGameOver, triggerEmergency])
   
@@ -161,11 +147,12 @@ function App() {
     }
   }, [gameStarted, userId])
 
-  // End session reliably on browser close
+  // End session reliably on browser close / tab switch / navigation away
   useEffect(() => {
     const endSessionBeacon = () => {
       const sid = useGameStore.getState().sessionId
       if (sid) {
+        // sendBeacon is reliable even during page unload
         navigator.sendBeacon(
           `${API_URL}/analytics/end-session/${sid}`,
           new Blob([], { type: 'application/json' })
@@ -173,9 +160,14 @@ function App() {
       }
     }
 
-    const handleBeforeUnload = () => endSessionBeacon()
+    const handleBeforeUnload = () => {
+      endSessionBeacon()
+    }
+
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') endSessionBeacon()
+      if (document.visibilityState === 'hidden') {
+        endSessionBeacon()
+      }
     }
 
     window.addEventListener('beforeunload', handleBeforeUnload)
@@ -197,29 +189,10 @@ function App() {
       <UI />
       <AnalyticsDashboard />
       
-      {/* NEW: Engagement Features */}
-      <ComboEffects />
-      <WeatherEffects />
-      <MissionSystem />
-      
-      {/* Zone indicator badge */}
-      {gameStarted && currentZone && (
-        <div style={{
-          position: 'absolute', bottom: 80, left: 20, zIndex: 9,
-          background: 'rgba(0,0,0,0.6)', borderRadius: '10px',
-          padding: '6px 12px', color: '#fff', fontSize: '0.8rem',
-          fontFamily: 'Arial, sans-serif', pointerEvents: 'none',
-          border: '1px solid rgba(255,255,255,0.15)',
-        }}>
-          {currentZone.label}
-          <div style={{ fontSize: '0.65rem', color: '#aaa' }}>{currentZone.labelSi}</div>
-        </div>
-      )}
-      
       {/* GameHUD - Real-time ML feedback during gameplay */}
       {gameStarted && userId && <GameHUD userId={userId} />}
       
-      {/* Achievement System */}
+      {/* Achievement System - Toast notifications + gallery */}
       {userId && (
         <AchievementSystem 
           userId={userId}
@@ -228,7 +201,7 @@ function App() {
         />
       )}
       
-      {/* Therapist Dashboard */}
+      {/* Therapist Dashboard - Full clinical view */}
       {showTherapistDashboard && userId && (
         <TherapistDashboard 
           userId={userId}
@@ -236,7 +209,7 @@ function App() {
         />
       )}
       
-      {/* Assessment Mode */}
+      {/* Assessment Mode - Standardized pre/post testing */}
       {showAssessmentMode && userId && (
         <AssessmentMode
           userId={userId}
@@ -254,11 +227,16 @@ function App() {
         style={{ pointerEvents: 'none' }}
         gl={{ antialias: false, powerPreference: 'high-performance' }}
       >
-        <fog attach="fog" args={[fogColor, 10, 50]} />
+        <fog attach="fog" args={['#101010', 10, 50]} />
         <Suspense fallback={null}>
+          {/* Lighting setup */}
           <ambientLight intensity={0.3} />
           <spotLight position={[10, 20, 10]} angle={0.5} penumbra={1} intensity={1} />
+          
+          {/* Main game scene with car and environment */}
           <GameScene />
+          
+          {/* Environment effects */}
           <Environment preset="night" />
           <Stars radius={100} depth={50} count={1500} factor={4} saturation={0} fade speed={1} />
         </Suspense>
@@ -268,3 +246,4 @@ function App() {
 }
 
 export default App
+

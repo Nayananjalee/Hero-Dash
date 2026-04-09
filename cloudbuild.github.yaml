@@ -74,7 +74,7 @@ jobs:
       - name: Build and push frontend image
         run: |
           docker build -t ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.FRONTEND_SERVICE }}:${{ github.sha }} \
-            --build-arg REACT_APP_API_URL=${{ steps.backend_url.outputs.url }} \
+            --build-arg VITE_API_URL=${{ steps.backend_url.outputs.url }} \
             ./frontend
           docker push ${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.FRONTEND_SERVICE }}:${{ github.sha }}
 
