@@ -58,6 +58,21 @@ function App() {
       devLog('⏭️ Skipping - emergency already active')
       return
     }
+
+    // --- ADVANCED GAMEPLAY LOGIC: Inhibitory Control Injection ---
+    // 25% chance to trigger a non-emergency 'distractor' instead of a real crisis
+    // This makes the game naturally advanced without needing backend changes.
+    const isDistractorTurn = Math.random() < 0.25;
+    if (isDistractorTurn) {
+      const distractors = ['distractor_icecream', 'distractor_horn', 'distractor_dog'];
+      const randomDistractor = distractors[Math.floor(Math.random() * distractors.length)];
+      devLog(`🎯 INJECTING DISTRACTOR: ${randomDistractor}`);
+      triggerEmergency(randomDistractor, 'Ignore');
+      scheduleAutoClear(8000); // 8 second window for the child to successfully ignore it
+      return;
+    }
+
+    // --- NORMAL LOGIC: Fetch real ML scenario from backend ---
     try {
       if (!API_URL) {
         devWarn('❌ API_URL not configured - cannot fetch emergency')

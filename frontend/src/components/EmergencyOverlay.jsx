@@ -114,25 +114,47 @@ function DirectionalArrow({ direction, color }) {
 }
 
 export default function EmergencyOverlay() {
-  const { emergencyActive, emergencyType, gameMode, level } = useGameStore()
-  const theme = emergencyType ? VEHICLE_THEMES[emergencyType] : null
+  const { emergencyActive, emergencyType, gameMode, level, responseLocked } = useGameStore()
+  
+  // Is this a distractor?
+  const isDistractor = emergencyType?.startsWith('distractor')
+  
+  // Theme selection: If it's a distractor, it shouldn't have a theme anyway, but let's be safe.
+  // CRITICAL RESEARCH FIX: During the "listening phase" (before responseLocked), 
+  // DO NOT show the answer visually. Show a generic "Listen!" prompt.
+  // We only show the specific colors/icons AFTER the response is locked (feedback phase)
+  // or if they are in "visual-only" mode (which defeats auditory training, but we keep it for accessibility).
+  
+  const theme = emergencyType && VEHICLE_THEMES[emergencyType] ? VEHICLE_THEMES[emergencyType] : null
+  const showAnswerVisuals = responseLocked || gameMode === 'visual-only'
 
   return (
     <AnimatePresence>
-      {emergencyActive && theme && (
+      {emergencyActive && (
         <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 10 }}>
           
-          {/* === Vehicle-Specific Colored Border Flash === */}
+          {/* === BORDER FLASH === */}
+          {/* Neutral generic flash before answering, specific color after answering */}
           <motion.div
             animate={{
-              boxShadow: [
-                `inset 0 0 60px 25px ${theme.glow}`,
-                `inset 0 0 30px 10px transparent`,
-                `inset 0 0 60px 25px ${theme.glow}`
-              ]
+              boxShadow: showAnswerVisuals && theme
+                ? [
+                    `inset 0 0 60px 25px ${theme.glow}`,
+                    `inset 0 0 30px 10px transparent`,
+                    `inset 0 0 60px 25px ${theme.glow}`
+                  ]
+                : [
+                    `inset 0 0 60px 25px rgba(255, 215, 0, 0.4)`, // Neutral Gold
+                    `inset 0 0 30px 10px transparent`,
+                    `inset 0 0 60px 25px rgba(255, 215, 0, 0.4)`
+                  ]
             }}
             transition={{ duration: 0.6, repeat: Infinity }}
-            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: `4px solid ${theme.primary}`, borderRadius: '0' }}
+            style={{ 
+              position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', 
+              border: `4px solid ${showAnswerVisuals && theme ? theme.primary : '#FFD700'}`, 
+              borderRadius: '0' 
+            }}
           />
 
           {/* === Central Instruction Banner (WCAG AAA Compliant) === */}
@@ -146,49 +168,60 @@ export default function EmergencyOverlay() {
           >
             <div style={{
               display: 'inline-block', padding: '15px 40px',
-              background: `linear-gradient(135deg, ${theme.primary}CC, ${theme.primary}99)`,
-              borderRadius: '20px', border: `3px solid ${theme.secondary}`,
-              boxShadow: `0 0 30px ${theme.glow}`
+              background: showAnswerVisuals && theme
+                ? `linear-gradient(135deg, ${theme.primary}CC, ${theme.primary}99)`
+                : `linear-gradient(135deg, rgba(255, 140, 0, 0.8), rgba(255, 69, 0, 0.8))`, // Neutral Orange
+              borderRadius: '20px', border: `3px solid ${showAnswerVisuals && theme ? theme.secondary : '#FFF'}`,
+              boxShadow: `0 0 30px ${showAnswerVisuals && theme ? theme.glow : 'rgba(255, 140, 0, 0.6)'}`
             }}>
-              {level < 3 ? (
-                <>
-                  <div style={{ fontSize: '2.5rem', color: 'white', fontWeight: 'bold',
-                    textShadow: '2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000' }}>
-                    {gameMode === 'visual-only' ? '👁️ Look!' : '🔊 Listen!'} {theme.icon} {theme.action}
-                  </div>
-                  <div style={{ fontSize: '1.3rem', color: theme.secondary, marginTop: '5px',
-                    textShadow: '1px 1px 0 #000, -1px -1px 0 #000' }}>
-                    {theme.sinhala} — {theme.actionSinhala}
-                  </div>
-                </>
-              ) : (
-                <div style={{ fontSize: '1.8rem', color: '#FFD700', marginTop: '10px', animation: 'pulse 1s infinite', fontWeight: 'bold', textShadow: '2px 2px 0 #000' }}>
-                  ⚠️ Listen Carefully! (හොඳින් අහන්න!)
+              {!showAnswerVisuals ? (
+                // BLIND LISTENING PHASE - Force auditory reliance
+                <div style={{ fontSize: '2.5rem', color: 'white', fontWeight: 'bold', animation: 'pulse 1s infinite', textShadow: '2px 2px 0 #000, -2px -2px 0 #000' }}>
+                  🎧 Listen! What is that sound? (හොඳින් අහන්න!) 🎧
                 </div>
+              ) : (
+                // POST-RESPONSE (FEEDBACK PHASE) OR VISUAL-ONLY MODE
+                isDistractor ? (
+                   <div style={{ fontSize: '2.5rem', color: 'white', fontWeight: 'bold', textShadow: '2px 2px 0 #000' }}>
+                    🛑 Normal Sound - Keep Driving! 🛑
+                  </div>
+                ) : theme ? (
+                  <>
+                    <div style={{ fontSize: '2.5rem', color: 'white', fontWeight: 'bold',
+                      textShadow: '2px 2px 0 #000, -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000' }}>
+                      {theme.icon} {theme.action}
+                    </div>
+                    <div style={{ fontSize: '1.3rem', color: theme.secondary, marginTop: '5px',
+                      textShadow: '1px 1px 0 #000, -1px -1px 0 #000' }}>
+                      {theme.sinhala} — {theme.actionSinhala}
+                    </div>
+                  </>
+                ) : null
               )}
             </div>
           </motion.div>
 
-          {/* === Animated Directional Arrow === */}
-          {level < 3 && <DirectionalArrow direction={theme.direction} color={theme.primary} />}
+          {/* === Animated Directional Arrow (Only show after response or in visual mode) === */}
+          {showAnswerVisuals && theme && <DirectionalArrow direction={theme.direction} color={theme.primary} />}
 
+          {/* === SIDE PANELS (Only show colors/animations if answered or visual mode) === */}
           {/* === LEFT OPTION PANEL (Building Fire - Move Left) === */}
           <motion.div
             initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
             transition={{ type: 'spring', stiffness: 200, damping: 25 }}
             style={{
               position: 'absolute', left: 0, top: '28%', bottom: '28%', width: '240px',
-              background: emergencyType === 'building_fire_alarm' 
+              background: showAnswerVisuals && emergencyType === 'building_fire_alarm' 
                 ? `linear-gradient(135deg, ${VEHICLE_THEMES.building_fire_alarm.primary}DD, ${VEHICLE_THEMES.building_fire_alarm.primary}88)` 
                 : 'rgba(0,0,0,0.85)',
               borderRight: `5px solid ${VEHICLE_THEMES.building_fire_alarm.primary}`,
               display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center',
               color: 'white', borderTopRightRadius: '20px', borderBottomRightRadius: '20px', zIndex: 20,
-              boxShadow: emergencyType === 'building_fire_alarm' ? `0 0 40px ${VEHICLE_THEMES.building_fire_alarm.glow}` : 'none'
+              boxShadow: showAnswerVisuals && emergencyType === 'building_fire_alarm' ? `0 0 40px ${VEHICLE_THEMES.building_fire_alarm.glow}` : 'none'
             }}
           >
             <motion.span 
-              animate={emergencyType === 'building_fire_alarm' ? { scale: [1, 1.2, 1] } : {}}
+              animate={showAnswerVisuals && emergencyType === 'building_fire_alarm' ? { scale: [1, 1.2, 1] } : {}}
               transition={{ duration: 0.6, repeat: Infinity }}
               style={{ fontSize: '4.5rem' }}
             >🔥</motion.span>
@@ -209,17 +242,17 @@ export default function EmergencyOverlay() {
             transition={{ type: 'spring', stiffness: 200, damping: 25 }}
             style={{
               position: 'absolute', right: 0, top: '28%', bottom: '28%', width: '240px',
-              background: emergencyType === 'tsunami_siren' 
+              background: showAnswerVisuals && emergencyType === 'tsunami_siren' 
                 ? `linear-gradient(135deg, ${VEHICLE_THEMES.tsunami_siren.primary}DD, ${VEHICLE_THEMES.tsunami_siren.primary}88)` 
                 : 'rgba(0,0,0,0.85)',
               borderLeft: `5px solid ${VEHICLE_THEMES.tsunami_siren.primary}`,
               display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center',
               color: 'white', borderTopLeftRadius: '20px', borderBottomLeftRadius: '20px', zIndex: 20,
-              boxShadow: emergencyType === 'tsunami_siren' ? `0 0 40px ${VEHICLE_THEMES.tsunami_siren.glow}` : 'none'
+              boxShadow: showAnswerVisuals && emergencyType === 'tsunami_siren' ? `0 0 40px ${VEHICLE_THEMES.tsunami_siren.glow}` : 'none'
             }}
           >
             <motion.span 
-              animate={emergencyType === 'tsunami_siren' ? { scale: [1, 1.2, 1] } : {}}
+              animate={showAnswerVisuals && emergencyType === 'tsunami_siren' ? { scale: [1, 1.2, 1] } : {}}
               transition={{ duration: 0.6, repeat: Infinity }}
               style={{ fontSize: '4.5rem' }}
             >🌊</motion.span>
@@ -241,18 +274,18 @@ export default function EmergencyOverlay() {
             style={{
               position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
               padding: '12px 35px',
-              background: emergencyType === 'air_raid_siren' 
+              background: showAnswerVisuals && emergencyType === 'air_raid_siren' 
                 ? `linear-gradient(135deg, ${VEHICLE_THEMES.air_raid_siren.primary}DD, ${VEHICLE_THEMES.air_raid_siren.primary}88)` 
                 : 'rgba(0,0,0,0.85)',
               borderBottom: `5px solid ${VEHICLE_THEMES.air_raid_siren.primary}`,
               color: 'white', borderBottomLeftRadius: '20px', borderBottomRightRadius: '20px',
               display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 20,
-              boxShadow: emergencyType === 'air_raid_siren' ? `0 0 40px ${VEHICLE_THEMES.air_raid_siren.glow}` : 'none'
+              boxShadow: showAnswerVisuals && emergencyType === 'air_raid_siren' ? `0 0 40px ${VEHICLE_THEMES.air_raid_siren.glow}` : 'none'
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <motion.span 
-                animate={emergencyType === 'air_raid_siren' ? { rotate: [0, -10, 10, 0] } : {}}
+                animate={showAnswerVisuals && emergencyType === 'air_raid_siren' ? { rotate: [0, -10, 10, 0] } : {}}
                 transition={{ duration: 0.5, repeat: Infinity }}
                 style={{ fontSize: '3rem' }}
               >🚨</motion.span>
@@ -271,18 +304,18 @@ export default function EmergencyOverlay() {
             style={{
               position: 'absolute', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
               padding: '12px 35px',
-              background: emergencyType === 'earthquake_alarm' 
+              background: showAnswerVisuals && emergencyType === 'earthquake_alarm' 
                 ? `linear-gradient(135deg, ${VEHICLE_THEMES.earthquake_alarm.primary}DD, ${VEHICLE_THEMES.earthquake_alarm.primary}88)` 
                 : 'rgba(0,0,0,0.85)',
               borderTop: `5px solid ${VEHICLE_THEMES.earthquake_alarm.primary}`,
               color: 'white', borderTopLeftRadius: '20px', borderTopRightRadius: '20px',
               display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 20,
-              boxShadow: emergencyType === 'earthquake_alarm' ? `0 0 40px ${VEHICLE_THEMES.earthquake_alarm.glow}` : 'none'
+              boxShadow: showAnswerVisuals && emergencyType === 'earthquake_alarm' ? `0 0 40px ${VEHICLE_THEMES.earthquake_alarm.glow}` : 'none'
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <motion.span 
-                animate={emergencyType === 'earthquake_alarm' ? { y: [0, -8, 0] } : {}}
+                animate={showAnswerVisuals && emergencyType === 'earthquake_alarm' ? { y: [0, -8, 0] } : {}}
                 transition={{ duration: 0.4, repeat: Infinity }}
                 style={{ fontSize: '3rem' }}
               >🏚️</motion.span>
@@ -304,17 +337,17 @@ export default function EmergencyOverlay() {
             transition={{ type: 'spring', stiffness: 180, damping: 22 }}
             style={{
               position: 'absolute', top: '8%', left: '20px', padding: '10px 15px',
-              background: emergencyType === 'flood_warning' 
+              background: showAnswerVisuals && emergencyType === 'flood_warning' 
                 ? `linear-gradient(135deg, ${VEHICLE_THEMES.flood_warning.primary}DD, ${VEHICLE_THEMES.flood_warning.primary}88)` 
                 : 'rgba(0,0,0,0.85)',
               border: `3px solid ${VEHICLE_THEMES.flood_warning.primary}`,
               borderRadius: '15px', color: 'white',
               display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 20,
-              boxShadow: emergencyType === 'flood_warning' ? `0 0 30px ${VEHICLE_THEMES.flood_warning.glow}` : 'none'
+              boxShadow: showAnswerVisuals && emergencyType === 'flood_warning' ? `0 0 30px ${VEHICLE_THEMES.flood_warning.glow}` : 'none'
             }}
           >
             <motion.span 
-              animate={emergencyType === 'flood_warning' ? { scale: [1, 1.15, 1] } : {}}
+              animate={showAnswerVisuals && emergencyType === 'flood_warning' ? { scale: [1, 1.15, 1] } : {}}
               transition={{ duration: 0.8, repeat: Infinity }}
               style={{ fontSize: '2.8rem' }}
             >

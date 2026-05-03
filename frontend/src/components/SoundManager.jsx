@@ -25,6 +25,9 @@ export default function SoundManager() {
       flood_warning: new Audio('/sounds/flood_warning.mp3'),
       air_raid_siren: new Audio('/sounds/air_raid_siren.mp3'),
       building_fire_alarm: new Audio('/sounds/building_fire_alarm.mp3'),
+      distractor_icecream: new Audio('/sounds/distractor_icecream.mp3'),
+      distractor_horn: new Audio('/sounds/distractor_horn.mp3'),
+      distractor_dog: new Audio('/sounds/distractor_dog.mp3'),
       cityAmbience: new Audio('/sounds/city_ambience.mp3'),
       engine: new Audio('/sounds/engine_loop.mp3')
     }
@@ -178,13 +181,43 @@ export default function SoundManager() {
           let soundToPlay = audioRefs.current[emergencyType] || null
           
           if (soundToPlay) {
-            soundToPlay.volume = 1.0
+            // Procedural Audio Generation & Doppler Effect Setup
+            soundToPlay.volume = 0.1 // Start quiet (far away)
             const duration = soundToPlay.duration || 0
             const maxOffset = Math.min(2, duration * 0.3)
             soundToPlay.currentTime = maxOffset > 0 ? Math.random() * maxOffset : 0
-            soundToPlay.playbackRate = 0.95 + Math.random() * 0.10
-            devLog(` Playing: ${emergencyType}`)
+            
+            // Base procedural pitch shift (so it doesn't sound like rote memorization)
+            const baseRate = 0.95 + Math.random() * 0.10
+            soundToPlay.playbackRate = baseRate
+            
+            devLog(`🚨 Playing Procedural Siren: ${emergencyType}`)
             await soundToPlay.play()
+
+            // Doppler Effect Simulation (Approaching then passing)
+            let timePassed = 0;
+            const dopplerInterval = setInterval(() => {
+              if (!useGameStore.getState().emergencyActive || soundToPlay.paused) {
+                clearInterval(dopplerInterval);
+                return;
+              }
+              timePassed += 100;
+              // Simulate vehicle approaching over 4 seconds, then passing
+              if (timePassed < 4000) {
+                // Approaching: volume increases, pitch is higher (Doppler blue-shift)
+                if (soundToPlay.volume < 1.0) soundToPlay.volume = Math.min(1.0, soundToPlay.volume + 0.05);
+                soundToPlay.playbackRate = baseRate + 0.05; 
+              } else if (timePassed < 6000) {
+                // Right next to player
+                soundToPlay.volume = 1.0;
+                soundToPlay.playbackRate = baseRate;
+              } else {
+                // Moving away: volume drops, pitch lowers (Doppler red-shift)
+                if (soundToPlay.volume > 0.1) soundToPlay.volume = Math.max(0.1, soundToPlay.volume - 0.05);
+                soundToPlay.playbackRate = baseRate - 0.08;
+              }
+            }, 100);
+
           }
         } catch (e) {
           devWarn(` SIREN PLAY FAILED for ${emergencyType}:`, e)

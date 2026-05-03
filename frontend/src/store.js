@@ -173,40 +173,49 @@ export const useGameStore = create((set, get) => ({
     set({ lane: newLane })
     // Check if correct lane for current emergency
     const state = get()
-    if (state.emergencyActive && state.targetLane !== null) {
-      // If response is already locked, ignore further presses
+    if (state.emergencyActive) {
       if (state.responseLocked) {
         devLog('🔒 Response already locked - ignoring lane change')
         return
       }
-      // Lock response on first press
-      set({ responseLocked: true })
 
-      // Validate by direction of movement, not just final position.
-      // This fixes the case where car is 2 lanes away from target
-      // (e.g. left lane pressing right only reaches center, not right lane).
-      const direction = newLane - oldLane // >0 = moved right, <0 = moved left, 0 = no movement
-      let isCorrect = false
-      if (newLane === state.targetLane) {
-        // Landed exactly on target (one step away, or already at target)
-        isCorrect = true
-      } else if (state.targetLane === 1 && direction > 0) {
-        // Target is RIGHT and user moved right (correct intent)
-        isCorrect = true
-      } else if (state.targetLane === -1 && direction < 0) {
-        // Target is LEFT and user moved left (correct intent)
-        isCorrect = true
+      if (state.emergencyType.startsWith('distractor')) {
+        set({ responseLocked: true })
+        devLog('❌ WRONG! Reacted to a distractor. Completing as failure')
+        state.completeEmergency(false)
+        return
       }
 
-      devLog(`🎯 Checking lane: old=${oldLane}, new=${newLane}, target=${state.targetLane}, direction=${direction}, correct=${isCorrect}`)
-      if (isCorrect) {
-        // Snap car to the correct target lane position
-        set({ lane: state.targetLane })
-        devLog('✅ CORRECT LANE! Completing emergency as success')
-        state.completeEmergency(true)
-      } else {
-        devLog('❌ WRONG LANE! Completing emergency as failure')
-        state.completeEmergency(false)
+      if (state.targetLane !== null) {
+        // Lock response on first press
+        set({ responseLocked: true })
+
+        // Validate by direction of movement, not just final position.
+        // This fixes the case where car is 2 lanes away from target
+        // (e.g. left lane pressing right only reaches center, not right lane).
+        const direction = newLane - oldLane // >0 = moved right, <0 = moved left, 0 = no movement
+        let isCorrect = false
+        if (newLane === state.targetLane) {
+          // Landed exactly on target (one step away, or already at target)
+          isCorrect = true
+        } else if (state.targetLane === 1 && direction > 0) {
+          // Target is RIGHT and user moved right (correct intent)
+          isCorrect = true
+        } else if (state.targetLane === -1 && direction < 0) {
+          // Target is LEFT and user moved left (correct intent)
+          isCorrect = true
+        }
+
+        devLog(`🎯 Checking lane: old=${oldLane}, new=${newLane}, target=${state.targetLane}, direction=${direction}, correct=${isCorrect}`)
+        if (isCorrect) {
+          // Snap car to the correct target lane position
+          set({ lane: state.targetLane })
+          devLog('✅ CORRECT LANE! Completing emergency as success')
+          state.completeEmergency(true)
+        } else {
+          devLog('❌ WRONG LANE! Completing emergency as failure')
+          state.completeEmergency(false)
+        }
       }
     }
   },
@@ -219,21 +228,30 @@ export const useGameStore = create((set, get) => ({
     set({ speedModifier: speed })
     // Check if correct speed for current emergency
     const state = get()
-    if (state.emergencyActive && state.targetSpeed !== null) {
-      // If response is already locked, ignore further presses
+    if (state.emergencyActive) {
       if (state.responseLocked) {
         devLog('🔒 Response already locked - ignoring speed change')
         return
       }
-      // Lock response on first press
-      set({ responseLocked: true })
-      devLog(`🎯 Checking speed target: current=${speed}, target=${state.targetSpeed}`)
-      if (state.targetSpeed === speed) {
-        devLog('✅ CORRECT SPEED! Completing emergency as success')
-        state.completeEmergency(true)
-      } else {
-        devLog('❌ WRONG SPEED! Completing emergency as failure')
+
+      if (state.emergencyType.startsWith('distractor')) {
+        set({ responseLocked: true })
+        devLog('❌ WRONG! Reacted to a distractor. Completing as failure')
         state.completeEmergency(false)
+        return
+      }
+
+      if (state.targetSpeed !== null) {
+        // Lock response on first press
+        set({ responseLocked: true })
+        devLog(`🎯 Checking speed target: current=${speed}, target=${state.targetSpeed}`)
+        if (state.targetSpeed === speed) {
+          devLog('✅ CORRECT SPEED! Completing emergency as success')
+          state.completeEmergency(true)
+        } else {
+          devLog('❌ WRONG SPEED! Completing emergency as failure')
+          state.completeEmergency(false)
+        }
       }
     }
   },
@@ -262,6 +280,12 @@ export const useGameStore = create((set, get) => ({
     if (type === 'flood_warning') { tSpeed = 0.5; tLane = null }     // Find Safe Place (seek shelter)
     if (type === 'air_raid_siren') { tLane = 0; tSpeed = null }      // Stay Center (take cover in place)
     if (type === 'building_fire_alarm') { tLane = -1; tSpeed = null } // Move Left (evacuate building)
+    
+    // Distractor overrides (Inhibitory Control)
+    if (type && type.startsWith('distractor')) {
+      tLane = null;
+      tSpeed = null;
+    }
 
     // Trigger haptic feedback for hearing-impaired accessibility
     // Uses screen-shake fallback on desktop/laptop where vibration is unavailable
@@ -384,8 +408,13 @@ export const useGameStore = create((set, get) => ({
     devLog('⏰ clearEmergency called (timeout)')
     const state = get()
     if (state.emergencyActive) {
+      if (state.emergencyType.startsWith('distractor')) {
+        devLog('✅ SUCCESS: Ignored distractor sound properly (Inhibitory Control)')
+        state.completeEmergency(true)
+      } else {
         devLog('❌ Marking emergency as FAILED due to timeout')
         state.completeEmergency(false)  // Timeout = failure
+      }
     } else {
       devLog('ℹ️ No active emergency to clear')
     }
