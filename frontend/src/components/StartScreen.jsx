@@ -241,6 +241,12 @@ export default function StartScreen() {
   const [loading, setLoading] = useState(false)
   const [showDashboard, setShowDashboard] = useState(false)
   const [step, setStep] = useState(1) // Multi-step onboarding: 1=name, 2=profile, 3=mode
+  const [customAlert, setCustomAlert] = useState(null) // Custom popup state
+
+  // Helper to show custom alerts instead of native browser alerts
+  const showAlert = (message, title = "Oops! ⚠️") => {
+    setCustomAlert({ title, message })
+  }
 
   // ========== Pre-fill from Research App (SilentSpark) ==========
   // When user comes from the research app, userId and username are passed via query params.
@@ -266,12 +272,12 @@ export default function StartScreen() {
   }
 
   const handleStart = async () => {
-    if (!name.trim()) return alert("Please enter your name")
+    if (!name.trim()) return showAlert("Please enter your name (කරුණාකර ඔබේ නම ඇතුළත් කරන්න)", "Name Required! ✏️")
     
     // Check if API URL is configured
     if (!API_URL) {
       devWarn("❌ API_URL not configured - cannot connect to backend")
-      alert("⚠️ Backend URL not configured!\n\nMake sure VITE_API_URL environment variable is set.\n\nFor Google Cloud:\n- Frontend should have VITE_API_URL=<backend-url>\n- Backend should have ALLOWED_ORIGINS=<frontend-url>")
+      showAlert("Backend URL not configured! Make sure VITE_API_URL environment variable is set.", "System Error ⚠️")
       return
     }
     
@@ -313,11 +319,8 @@ export default function StartScreen() {
       console.error("Full error:", error)
       
       // Show user-friendly error with debugging info
-      alert(
-        `❌ Cannot connect to backend\n\nError: ${errorMsg}\n\nAPI URL: ${API_URL}\n\nPlease check:\n` +
-        `1. Is the backend service running?\n` +
-        `2. Is ALLOWED_ORIGINS configured on backend?\n` +
-        `3. Check browser console for more details`
+      showAlert(
+        `Cannot connect to backend server. Is it running? (${errorMsg})`, "Connection Error ❌"
       )
     } finally {
       setLoading(false)
@@ -325,10 +328,10 @@ export default function StartScreen() {
   }
 
   const handleDashboard = async () => {
-    if (!name.trim()) return alert("Please enter your name (කරුණාකර ඔබේ නම ඇතුළත් කරන්න)")
+    if (!name.trim()) return showAlert("Please enter your name (කරුණාකර ඔබේ නම ඇතුළත් කරන්න)", "Name Required! ✏️")
     
     if (!API_URL) {
-      alert("⚠️ Backend URL not configured!")
+      showAlert("Backend URL not configured!", "System Error ⚠️")
       return
     }
     
@@ -353,7 +356,7 @@ export default function StartScreen() {
     } catch (error) {
       const errorMsg = error?.message || String(error)
       devWarn("❌ Dashboard load failed:", errorMsg)
-      alert(`❌ Cannot load dashboard\n\nError: ${errorMsg}\n\nAPI URL: ${API_URL}`)
+      showAlert(`Cannot load dashboard: ${errorMsg}`, "Connection Error ❌")
     } finally {
       setLoading(false)
     }
@@ -361,10 +364,10 @@ export default function StartScreen() {
 
   // Shared function to register user for advanced actions
   const registerAndDo = async (action) => {
-    if (!name.trim()) return alert("Please enter your name first")
+    if (!name.trim()) return showAlert("Please enter your name first", "Name Required! ✏️")
     
     if (!API_URL) {
-      alert("⚠️ Backend URL not configured!")
+      showAlert("Backend URL not configured!", "System Error ⚠️")
       return
     }
     
@@ -388,7 +391,7 @@ export default function StartScreen() {
       action()
     } catch (error) { 
       devWarn("❌ Registration failed:", error?.message || error)
-      alert(`❌ Connection failed: ${error?.message || 'Unknown error'}\n\nAPI: ${API_URL}`) 
+      showAlert(`Connection failed: ${error?.message || 'Unknown error'}`, "Connection Error ❌") 
     }
     finally { setLoading(false) }
   }
@@ -406,6 +409,31 @@ export default function StartScreen() {
       overflow: 'hidden'
     }}>
       <FloatingParticles />
+
+      {/* ========== CUSTOM POPUP ALERT ========== */}
+      {customAlert && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+          background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, backdropFilter: 'blur(5px)'
+        }}>
+          <div style={{
+            background: 'linear-gradient(135deg, #2d1b69, #1a1a40)', border: '4px solid #FFD700',
+            borderRadius: '24px', padding: '30px 40px', maxWidth: '400px', width: '80%',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.5)', animation: 'popBounce 0.4s ease-out'
+          }}>
+            <h2 style={{ color: '#FFD700', marginTop: 0, fontSize: '1.8rem' }}>{customAlert.title}</h2>
+            <p style={{ fontSize: '1.2rem', lineHeight: '1.5', margin: '20px 0' }}>{customAlert.message}</p>
+            <button className="kid-btn" onClick={() => setCustomAlert(null)} style={{
+              padding: '12px 30px', fontSize: '1.2rem', fontWeight: 'bold',
+              background: '#2ecc71', color: 'white', border: 'none', borderRadius: '50px',
+              cursor: 'pointer', boxShadow: '0 5px 15px rgba(46,204,113,0.4)', width: '100%'
+            }}>
+              OK, Got it! 👍
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ========== BACK TO SILENTSPARK ========== */}
       <a
