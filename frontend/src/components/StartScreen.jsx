@@ -443,300 +443,133 @@ export default function StartScreen() {
         </p>
       </div>
 
-      {/* ========== STEP INDICATOR ========== */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', zIndex: 1, alignItems: 'center' }}>
-        {[
-          { n: 1, icon: '✏️', label: 'Name' },
-          { n: 2, icon: '👤', label: 'Profile' },
-          { n: 3, icon: '🎮', label: 'Play!' }
-        ].map((s, i) => (
-          <React.Fragment key={s.n}>
-            {i > 0 && <div style={{
-              width: '30px', height: '3px',
-              background: step >= s.n ? 'linear-gradient(90deg, #2ecc71, #27ae60)' : 'rgba(255,255,255,0.15)',
-              borderRadius: '2px', transition: 'background 0.4s'
-            }}/>}
-            <div style={{
-              width: '38px', height: '38px', borderRadius: '50%',
-              background: step >= s.n
-                ? 'linear-gradient(135deg, #2ecc71, #27ae60)'
-                : 'rgba(255,255,255,0.1)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontWeight: 'bold', fontSize: '1rem', transition: 'all 0.4s',
-              border: step === s.n ? '3px solid #fff' : '3px solid transparent',
-              boxShadow: step === s.n ? '0 0 15px rgba(46,204,113,0.6)' : 'none',
-              cursor: s.n < step ? 'pointer' : 'default'
-            }} onClick={() => { if (s.n < step) setStep(s.n) }}
-            title={s.label}>
-              {step > s.n ? '✓' : s.icon}
-            </div>
-          </React.Fragment>
-        ))}
-      </div>
-
-      {/* ========== MAIN CONTENT AREA ========== */}
+      {/* ========== SINGLE PAGE CONTENT AREA ========== */}
       <div style={{
-        zIndex: 1, width: '94%', maxWidth: '880px',
+        zIndex: 1, width: '96%', maxWidth: '1000px',
         flex: '1 1 auto', display: 'flex', flexDirection: 'column',
-        justifyContent: 'center', minHeight: 0, maxHeight: 'calc(100vh - 180px)'
+        alignItems: 'center', gap: '20px', paddingBottom: '20px',
+        overflowY: 'auto'
       }}>
 
-        {/* =================== STEP 1: NAME & INSTRUCTIONS =================== */}
-        {step === 1 && (
-          <div style={{ animation: 'slideUp 0.4s ease-out', display: 'flex', flexDirection: 'column', gap: '14px', alignItems: 'center' }}>
-            
-            {/* Compact instruction cards — 5 crisis sounds */}
-            <div style={{
-              display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px', width: '100%'
-            }}>
-              {[
-                { emoji: '🌊', label: 'Tsunami', action: 'Right ➡️', si: 'සුනාමි', color: '#0077B6' },
-                { emoji: '🏚️', label: 'Earthquake', action: 'Stop ⬇️', si: 'භූමිකම්පා', color: '#8B4513' },
-                { emoji: '🌊', label: 'Flood', action: 'Safe 🏠 (S)', si: 'ගංවතුර', color: '#1E90FF' },
-                { emoji: '🚨', label: 'Air Raid', action: 'Center ⏺️', si: 'ගුවන් ප්‍රහාර', color: '#800080' },
-                { emoji: '🔥', label: 'Bldg Fire', action: 'Left ⬅️', si: 'ගොඩනැගිලි ගිනි', color: '#DC143C' }
-              ].map((item, i) => (
-                <div key={i} className="kid-btn" style={{
-                  background: `linear-gradient(135deg, ${item.color}22, ${item.color}11)`,
-                  border: `2px solid ${item.color}55`,
-                  borderRadius: '14px', padding: '10px 6px', textAlign: 'center',
-                  backdropFilter: 'blur(10px)',
-                  animation: `popBounce 0.5s ease-out`,
-                  animationDelay: `${i * 0.08}s`, animationFillMode: 'both'
+        {/* --- Top Row: Name Input & Action Buttons --- */}
+        <div style={{ display: 'flex', gap: '20px', width: '100%', flexWrap: 'wrap', justifyContent: 'center' }}>
+          {/* Name Input */}
+          <div style={{ 
+            background: 'rgba(255,255,255,0.08)', borderRadius: '20px', padding: '15px 20px',
+            backdropFilter: 'blur(15px)', border: '2px solid rgba(255,255,255,0.12)',
+            flex: '1 1 300px', display: 'flex', flexDirection: 'column', justifyContent: 'center'
+          }}>
+            <label style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '8px', color: '#FFD700', textAlign: 'left' }}>
+              ✏️ What's your name? (ඔබේ නම)
+            </label>
+            <input 
+              type="text" placeholder="Enter your name here..." value={name}
+              onChange={(e) => setName(e.target.value)}
+              style={{
+                padding: '12px 15px', fontSize: '1.1rem', borderRadius: '12px',
+                border: '2px solid rgba(255,255,255,0.2)', width: '100%', boxSizing: 'border-box',
+                background: 'rgba(255,255,255,0.95)', color: '#333', fontWeight: 600, outline: 'none'
+              }}
+            />
+          </div>
+
+          {/* Action Buttons (Missions, Dashboard, etc.) */}
+          <div style={{ 
+            background: 'rgba(255,255,255,0.08)', borderRadius: '20px', padding: '15px',
+            backdropFilter: 'blur(15px)', border: '2px solid rgba(255,255,255,0.12)',
+            flex: '2 1 400px', display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', alignItems: 'center'
+          }}>
+            {[
+              { label: '📋 Missions', action: () => registerAndDo(() => useGameStore.getState().setShowMissionSelect(true)), bg: '#e74c3c' },
+              { label: '🩺 Therapist', action: () => registerAndDo(() => useGameStore.getState().setShowTherapistDashboard(true)), bg: '#9b59b6' },
+              { label: '📊 Dashboard', action: handleDashboard, bg: '#3498db' },
+              { label: '🏆 Awards', action: () => { if (!useGameStore.getState().userId) return alert("Start a session first"); useGameStore.getState().setShowAchievements(true) }, bg: '#f39c12' }
+            ].map((btn, i) => (
+              <button key={i} className="kid-btn" onClick={btn.action} disabled={loading} style={{
+                padding: '10px 16px', fontSize: '0.9rem', fontWeight: 800,
+                background: loading ? '#555' : btn.bg, color: 'white',
+                border: 'none', borderRadius: '12px', cursor: loading ? 'not-allowed' : 'pointer',
+                flex: '1 1 calc(45% - 8px)', boxShadow: '0 4px 10px rgba(0,0,0,0.2)'
+              }}>{btn.label}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* --- Middle Row: Age and Hearing Level Selection --- */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', width: '100%' }}>
+          {/* Age Selection */}
+          <div style={{
+            background: 'rgba(255,255,255,0.07)', borderRadius: '20px', padding: '20px',
+            backdropFilter: 'blur(15px)', border: '2px solid rgba(255,255,255,0.1)'
+          }}>
+            <h3 style={{ margin: '0 0 15px 0', fontSize: '1.2rem', color: '#FFD700', textAlign: 'left' }}>
+              👶 How old are you? (වයස)
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+              {AGE_GROUPS.map((ag, i) => (
+                <button key={ag.value} className="kid-btn" onClick={() => setAge(ag.value)} style={{
+                  padding: '12px 5px', borderRadius: '16px', cursor: 'pointer', border: 'none',
+                  background: ageGroup === ag.value
+                    ? 'linear-gradient(135deg, #2ecc71, #27ae60)'
+                    : 'rgba(255,255,255,0.08)',
+                  color: 'white', textAlign: 'center',
+                  boxShadow: ageGroup === ag.value ? '0 4px 15px rgba(46,204,113,0.5)' : 'none',
+                  animation: `popBounce 0.4s ease-out`,
+                  animationDelay: `${i * 0.05}s`, animationFillMode: 'both'
                 }}>
-                  <div style={{ fontSize: '2rem', marginBottom: '4px' }}>{item.emoji}</div>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: item.color }}>{item.label}</div>
-                  <div style={{ fontSize: '0.7rem', opacity: 0.7, margin: '2px 0' }}>{item.si}</div>
-                  <div style={{
-                    fontSize: '0.75rem', fontWeight: 700, color: '#fff',
-                    background: `${item.color}44`, borderRadius: '8px', padding: '3px 6px', marginTop: '4px'
-                  }}>{item.action}</div>
-                </div>
+                  <div style={{ fontSize: '1.6rem', marginBottom: '5px' }}>{ag.emoji}</div>
+                  <div style={{ fontSize: '0.95rem', fontWeight: 800 }}>{ag.label}</div>
+                </button>
               ))}
             </div>
-
-            {/* Name input */}
-            <div style={{ 
-              background: 'rgba(255,255,255,0.08)', borderRadius: '18px', padding: '18px 24px',
-              backdropFilter: 'blur(15px)', border: '2px solid rgba(255,255,255,0.12)',
-              width: '100%', maxWidth: '460px'
-            }}>
-              <label style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '8px', display: 'block', color: '#FFD700' }}>
-                ✏️ What's your name? (ඔබේ නම)
-              </label>
-              <input 
-                type="text" placeholder="Enter your name here..." value={name}
-                onChange={(e) => setName(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleNext()}
-                style={{
-                  padding: '14px 18px', fontSize: '1.2rem', borderRadius: '12px',
-                  border: '2px solid rgba(255,255,255,0.2)', width: '100%', boxSizing: 'border-box',
-                  textAlign: 'center', background: 'rgba(255,255,255,0.95)', color: '#333',
-                  fontWeight: 600, outline: 'none'
-                }}
-              />
-            </div>
-
-            <button className="kid-btn" onClick={handleNext} style={{
-              padding: '14px 60px', fontSize: '1.3rem',
-              background: 'linear-gradient(135deg, #2ecc71 0%, #27ae60 100%)',
-              color: 'white', border: 'none', borderRadius: '50px',
-              cursor: 'pointer', fontWeight: 'bold',
-              boxShadow: '0 6px 25px rgba(46,204,113,0.4)'
-            }}>Let's Go! →</button>
           </div>
-        )}
 
-        {/* =================== STEP 2: PROFILE (AGE + HEARING) — SIDE BY SIDE =================== */}
-        {step === 2 && (
-          <div style={{ animation: 'slideUp 0.35s ease-out', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              {/* === AGE GROUP (left column) === */}
-              <div style={{
-                background: 'rgba(255,255,255,0.07)', borderRadius: '18px', padding: '16px',
-                backdropFilter: 'blur(15px)', border: '2px solid rgba(255,255,255,0.1)'
-              }}>
-                <h3 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: '#FFD700' }}>
-                  👶 How old are you?
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: '6px' }}>
-                  {AGE_GROUPS.map((ag, i) => (
-                    <button key={ag.value} className="kid-btn" onClick={() => setAge(ag.value)} style={{
-                      padding: '8px 4px', borderRadius: '12px', cursor: 'pointer', border: 'none',
-                      background: ageGroup === ag.value
-                        ? 'linear-gradient(135deg, #2ecc71, #27ae60)'
-                        : 'rgba(255,255,255,0.08)',
-                      color: 'white', textAlign: 'center',
-                      boxShadow: ageGroup === ag.value ? '0 3px 15px rgba(46,204,113,0.4)' : 'none',
-                      animation: `popBounce 0.4s ease-out`,
-                      animationDelay: `${i * 0.05}s`, animationFillMode: 'both'
-                    }}>
-                      <div style={{ fontSize: '1.3rem' }}>{ag.emoji}</div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>{ag.label}</div>
-                      <div style={{ fontSize: '0.6rem', opacity: 0.75 }}>{ag.description}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* === HEARING LEVEL (right column) === */}
-              <div style={{
-                background: 'rgba(255,255,255,0.07)', borderRadius: '18px', padding: '16px',
-                backdropFilter: 'blur(15px)', border: '2px solid rgba(255,255,255,0.1)'
-              }}>
-                <h3 style={{ margin: '0 0 4px 0', fontSize: '1.1rem', color: '#FFD700' }}>
-                  🦻 Hearing Level
-                </h3>
-                <p style={{ fontSize: '0.72rem', margin: '0 0 8px 0', opacity: 0.6 }}>
-                  Ask your parent or therapist for help
-                </p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                  {HEARING_LEVELS.map((hl, i) => (
-                    <button key={hl.value} className="kid-btn" onClick={() => setHearingLevel(hl.value)} style={{
-                      padding: '8px 6px', borderRadius: '10px', cursor: 'pointer', border: 'none',
-                      background: hearingLevel === hl.value
-                        ? `linear-gradient(135deg, ${hl.color}55, ${hl.color}33)`
-                        : 'rgba(255,255,255,0.06)',
-                      color: 'white', textAlign: 'center',
-                      outline: hearingLevel === hl.value ? `2px solid ${hl.color}` : 'none',
-                      animation: `popBounce 0.4s ease-out`,
-                      animationDelay: `${i * 0.05}s`, animationFillMode: 'both'
-                    }}>
-                      <span style={{ fontSize: '1rem' }}>{hl.icon}</span>
-                      <div style={{ fontSize: '0.78rem', fontWeight: 700 }}>{hl.label}</div>
-                      {hl.detail && <div style={{ fontSize: '0.6rem', opacity: 0.6 }}>{hl.detail}</div>}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Navigation */}
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-              <button className="kid-btn" onClick={handleBack} style={{
-                padding: '12px 30px', fontSize: '1.1rem', background: 'rgba(255,255,255,0.12)',
-                color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', fontWeight: 'bold'
-              }}>← Back</button>
-              <button className="kid-btn" onClick={handleNext} style={{
-                padding: '12px 50px', fontSize: '1.1rem',
-                background: 'linear-gradient(135deg, #2ecc71, #27ae60)',
-                color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', fontWeight: 'bold',
-                boxShadow: '0 4px 20px rgba(46,204,113,0.4)'
-              }}>Next →</button>
+          {/* Hearing Level Selection */}
+          <div style={{
+            background: 'rgba(255,255,255,0.07)', borderRadius: '20px', padding: '20px',
+            backdropFilter: 'blur(15px)', border: '2px solid rgba(255,255,255,0.1)'
+          }}>
+            <h3 style={{ margin: '0 0 5px 0', fontSize: '1.2rem', color: '#FFD700', textAlign: 'left' }}>
+              🦻 Hearing Level (ශ්‍රවණ මට්ටම)
+            </h3>
+            <p style={{ fontSize: '0.8rem', margin: '0 0 12px 0', opacity: 0.7, textAlign: 'left' }}>
+              Ask your parent or therapist for help
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              {HEARING_LEVELS.map((hl, i) => (
+                <button key={hl.value} className="kid-btn" onClick={() => setHearingLevel(hl.value)} style={{
+                  padding: '12px 8px', borderRadius: '16px', cursor: 'pointer', border: 'none',
+                  background: hearingLevel === hl.value
+                    ? `linear-gradient(135deg, ${hl.color}77, ${hl.color}44)`
+                    : 'rgba(255,255,255,0.06)',
+                  color: 'white', textAlign: 'center',
+                  outline: hearingLevel === hl.value ? `3px solid ${hl.color}` : 'none',
+                  boxShadow: hearingLevel === hl.value ? `0 4px 15px ${hl.color}66` : 'none',
+                  animation: `popBounce 0.4s ease-out`,
+                  animationDelay: `${i * 0.05}s`, animationFillMode: 'both'
+                }}>
+                  <span style={{ fontSize: '1.4rem', display: 'block', marginBottom: '4px' }}>{hl.icon}</span>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 800 }}>{hl.label}</div>
+                </button>
+              ))}
             </div>
           </div>
-        )}
+        </div>
 
-        {/* =================== STEP 3: GAME MODE & LAUNCH =================== */}
-        {step === 3 && (
-          <div style={{ animation: 'slideUp 0.35s ease-out', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              {/* Game Mode Selection */}
-              <div style={{
-                background: 'rgba(255,255,255,0.07)', borderRadius: '18px', padding: '16px',
-                backdropFilter: 'blur(15px)', border: '2px solid rgba(255,255,255,0.1)'
-              }}>
-                <h3 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: '#FFD700' }}>
-                  🎮 Choose Your Mode
-                </h3>
-                <div style={{ display: 'grid', gap: '8px' }}>
-                  {GAME_MODES.map((gm, i) => (
-                    <button key={gm.value} className="kid-btn" onClick={() => setMode(gm.value)} style={{
-                      padding: '12px 14px', borderRadius: '12px', cursor: 'pointer', border: 'none',
-                      background: gameMode === gm.value
-                        ? `linear-gradient(135deg, ${gm.color}44, ${gm.color}22)`
-                        : 'rgba(255,255,255,0.06)',
-                      color: 'white', textAlign: 'left',
-                      outline: gameMode === gm.value ? `2px solid ${gm.color}` : 'none',
-                      display: 'flex', alignItems: 'center', gap: '10px',
-                      animation: `popBounce 0.4s ease-out`,
-                      animationDelay: `${i * 0.08}s`, animationFillMode: 'both'
-                    }}>
-                      <div>
-                        <div style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '2px' }}>
-                          {gm.label}
-                          {gm.recommended && <span style={{ 
-                            marginLeft: '8px', fontSize: '0.6rem', background: '#2ecc71', 
-                            padding: '2px 7px', borderRadius: '8px', verticalAlign: 'middle'
-                          }}>★</span>}
-                        </div>
-                        <div style={{ fontSize: '0.75rem', opacity: 0.7 }}>{gm.description}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
+        {/* --- Bottom Row: Big Start Button --- */}
+        <div style={{ marginTop: '10px', width: '100%', display: 'flex', justifyContent: 'center' }}>
+          <button className="kid-btn" onClick={handleStart} disabled={loading} style={{
+            padding: '16px 80px', fontSize: '1.6rem',
+            background: loading ? '#7f8c8d' : 'linear-gradient(135deg, #FF6B35, #F7C948, #2ecc71)',
+            backgroundSize: '200%', color: 'white', border: 'none', borderRadius: '50px',
+            cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 900,
+            boxShadow: '0 8px 30px rgba(255,107,53,0.5)', letterSpacing: '1.5px',
+            animation: loading ? 'none' : 'wiggle 2s ease-in-out infinite'
+          }}>
+            {loading ? '⏳ Loading...' : '🚀 START GAME!'}
+          </button>
+        </div>
 
-              {/* Profile Summary */}
-              <div style={{
-                background: 'rgba(255,255,255,0.07)', borderRadius: '18px', padding: '16px',
-                backdropFilter: 'blur(15px)', border: '2px solid rgba(255,255,255,0.1)',
-                display: 'flex', flexDirection: 'column', justifyContent: 'space-between'
-              }}>
-                <div>
-                  <h3 style={{ margin: '0 0 12px 0', fontSize: '1.1rem', color: '#FFD700' }}>📋 Ready to Play!</h3>
-                  <div style={{ display: 'grid', gap: '8px' }}>
-                    {[
-                      { icon: '👤', label: 'Player', value: name || '—' },
-                      { icon: '🎂', label: 'Age', value: AGE_GROUPS.find(a => a.value === ageGroup)?.label + ' yrs' },
-                      { icon: '🦻', label: 'Hearing', value: HEARING_LEVELS.find(h => h.value === hearingLevel)?.label },
-                      { icon: '🎮', label: 'Mode', value: GAME_MODES.find(m => m.value === gameMode)?.label.replace(/🔊 |👁️ |📋 /, '') }
-                    ].map((item, i) => (
-                      <div key={i} style={{
-                        display: 'flex', alignItems: 'center', gap: '8px',
-                        background: 'rgba(255,255,255,0.05)', borderRadius: '10px', padding: '8px 12px'
-                      }}>
-                        <span style={{ fontSize: '1.2rem' }}>{item.icon}</span>
-                        <span style={{ fontSize: '0.78rem', opacity: 0.6, minWidth: '50px' }}>{item.label}</span>
-                        <span style={{ fontSize: '0.9rem', fontWeight: 700 }}>{item.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Quick actions below summary */}
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '10px' }}>
-                  {[
-                    { label: '📋 Missions', action: () => registerAndDo(() => useGameStore.getState().setShowMissionSelect(true)), bg: '#e74c3c' },
-                    { label: '🩺 Therapist', action: () => registerAndDo(() => useGameStore.getState().setShowTherapistDashboard(true)), bg: '#9b59b6' },
-                    { label: '📋 Assess', action: () => registerAndDo(() => useGameStore.getState().launchAssessment('baseline')), bg: '#e67e22' },
-                    { label: '📊 Dashboard', action: handleDashboard, bg: '#3498db' },
-                    { label: '🏆 Awards', action: () => { if (!useGameStore.getState().userId) return alert("Start a session first"); useGameStore.getState().setShowAchievements(true) }, bg: '#f39c12' }
-                  ].map((btn, i) => (
-                    <button key={i} className="kid-btn" onClick={btn.action} disabled={loading} style={{
-                      padding: '5px 10px', fontSize: '0.72rem', fontWeight: 700,
-                      background: loading ? '#555' : btn.bg, color: 'white',
-                      border: 'none', borderRadius: '8px', cursor: loading ? 'not-allowed' : 'pointer',
-                      flex: '1 1 30%'
-                    }}>{btn.label}</button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Main action buttons */}
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-              <button className="kid-btn" onClick={handleBack} style={{
-                padding: '12px 30px', fontSize: '1.1rem', background: 'rgba(255,255,255,0.12)',
-                color: 'white', border: 'none', borderRadius: '50px', cursor: 'pointer', fontWeight: 'bold'
-              }}>← Back</button>
-              <button className="kid-btn" onClick={handleStart} disabled={loading} style={{
-                padding: '14px 50px', fontSize: '1.4rem',
-                background: loading ? '#7f8c8d' : 'linear-gradient(135deg, #FF6B35, #F7C948, #2ecc71)',
-                backgroundSize: '200%',
-                color: 'white', border: 'none', borderRadius: '50px',
-                cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 900,
-                boxShadow: '0 6px 30px rgba(255,107,53,0.45)',
-                letterSpacing: '1px',
-                animation: loading ? 'none' : 'wiggle 2s ease-in-out infinite'
-              }}>
-                {loading ? '⏳ Loading...' : '🚀 START GAME!'}
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )
