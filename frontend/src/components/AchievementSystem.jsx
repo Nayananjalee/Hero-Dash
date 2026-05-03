@@ -132,10 +132,10 @@ function AchievementGallery({ achievements, onClose }) {
           <svg width="100" height="100" viewBox="0 0 100 100">
             <circle cx="50" cy="50" r="42" stroke="rgba(255,255,255,0.1)" strokeWidth="8" fill="none" />
             <circle cx="50" cy="50" r="42" stroke="#f1c40f" strokeWidth="8" fill="none"
-              strokeDasharray={`${(unlockedCount / achievements.length) * 264} 264`}
+              strokeDasharray={`${achievements.length > 0 ? (unlockedCount / achievements.length) * 264 : 0} 264`}
               strokeLinecap="round" transform="rotate(-90 50 50)" />
             <text x="50" y="50" textAnchor="middle" dominantBaseline="central" fill="white" fontSize="18" fontWeight="bold">
-              {Math.round((unlockedCount / achievements.length) * 100)}%
+              {achievements.length > 0 ? Math.round((unlockedCount / achievements.length) * 100) : 0}%
             </text>
           </svg>
         </div>
@@ -194,7 +194,10 @@ export default function AchievementSystem({ userId, show, onClose }) {
   const previouslyUnlockedRef = useRef(new Set())
 
   const fetchAchievements = useCallback(async () => {
-    if (!userId) return
+    if (!userId) {
+      setAchievements([])
+      return
+    }
     try {
       const res = await fetch(`${API_URL}/achievements/${userId}`)
       const data = await res.json()
