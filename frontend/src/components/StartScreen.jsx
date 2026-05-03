@@ -235,6 +235,7 @@ export default function StartScreen() {
   const setHearingProfile = useGameStore((state) => state.setHearingProfile)
   
   const [name, setName] = useState('')
+  const [isNameLocked, setIsNameLocked] = useState(false)
   const [ageGroup, setAge] = useState('7-8')
   const [hearingLevel, setHearingLevel] = useState('mild')
   const [gameMode, setMode] = useState('audio-visual')
@@ -250,15 +251,15 @@ export default function StartScreen() {
 
   // ========== Pre-fill from Research App (SilentSpark) ==========
   // When user comes from the research app, userId and username are passed via query params.
-  // We pre-fill the name so the user still goes through the normal onboarding steps.
+  // We pre-fill the name AND lock it.
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const researchUserId = params.get('userId')
     const researchUsername = params.get('username')
     if (researchUserId && researchUsername) {
-      devLog('\ud83d\udd17 Research app user detected:', researchUsername, '(ID:', researchUserId, ')')
-      // Pre-fill name but let user continue through normal step flow
+      devLog('🔗 Research app user detected:', researchUsername, '(ID:', researchUserId, ')')
       setName(researchUsername)
+      setIsNameLocked(true)
     }
   }, [])
 
@@ -492,13 +493,22 @@ export default function StartScreen() {
             </label>
             <input 
               type="text" placeholder="Enter your name here..." value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => !isNameLocked && setName(e.target.value)}
+              disabled={isNameLocked}
               style={{
                 padding: '12px 15px', fontSize: '1.1rem', borderRadius: '12px',
                 border: '2px solid rgba(255,255,255,0.2)', width: '100%', boxSizing: 'border-box',
-                background: 'rgba(255,255,255,0.95)', color: '#333', fontWeight: 600, outline: 'none'
+                background: isNameLocked ? 'rgba(200,200,200,0.8)' : 'rgba(255,255,255,0.95)', 
+                color: isNameLocked ? '#555' : '#333', fontWeight: 600, outline: 'none',
+                cursor: isNameLocked ? 'not-allowed' : 'text'
               }}
             />
+            {isNameLocked && (
+              <span style={{ 
+                position: 'absolute', right: '30px', bottom: '25px', 
+                fontSize: '1.2rem', title: 'Name locked from SilentSpark' 
+              }}>🔒</span>
+            )}
           </div>
 
           {/* Action Buttons (Missions, Dashboard, etc.) */}
