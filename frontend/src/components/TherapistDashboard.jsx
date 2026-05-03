@@ -402,6 +402,7 @@ function TabButton({ active, label, icon, onClick }) {
 // ============================================================
 export default function TherapistDashboard({ userId, onBack }) {
   const [loading, setLoading] = useState(true)
+  const [errorMsg, setErrorMsg] = useState(null)
   const [activeTab, setActiveTab] = useState('overview')
   const [dashboardData, setDashboardData] = useState(null)
   const [memoryStates, setMemoryStates] = useState(null)
