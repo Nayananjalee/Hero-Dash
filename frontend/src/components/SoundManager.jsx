@@ -5,8 +5,7 @@ import { getAudioContext, getProcessingInputNode, isAudioChainReady } from './Au
 
 export default function SoundManager() {
   const { emergencyActive, emergencyType, gameStarted, level, isPaused } = useGameStore()
-  const [soundEnabled, setSoundEnabled] = useState(false)
-  const [showButton, setShowButton] = useState(true)
+  const [soundEnabled, setSoundEnabled] = useState(true) // ALWAYS TRUE NOW
   const [audioInitialized, setAudioInitialized] = useState(false)
   
   // Store audio instances and their MediaElementSource nodes
@@ -140,6 +139,13 @@ export default function SoundManager() {
   // Handle Game Start (Ambience)
   useEffect(() => {
     if (gameStarted && soundEnabled && audioRefs.current.cityAmbience) {
+      
+      // Auto-unlock AudioContext if it was suspended (using the click from the Start screen)
+      const ctx = getAudioContext()
+      if (ctx?.state === 'suspended') {
+        ctx.resume().catch(() => devWarn("Could not resume audio context automatically"));
+      }
+
       // Try to connect to processing chain now that game is started
       connectToProcessingChain()
       
@@ -227,123 +233,7 @@ export default function SoundManager() {
     }
   }, [emergencyActive, emergencyType, gameStarted, soundEnabled])
 
-  const enableSound = async () => {
-    setSoundEnabled(true)
-    setShowButton(false)
-    
-    // Resume AudioContext (browser requirement)
-    const ctx = getAudioContext()
-    if (ctx?.state === 'suspended') {
-      await ctx.resume()
-    }
-    
-    try {
-      // Unlock each audio file
-      for (const [name, audio] of Object.entries(audioRefs.current)) {
-        try {
-          audio.volume = 0.01
-          await audio.play()
-          audio.pause()
-          audio.currentTime = 0
-          devLog(` Unlocked: ${name}`)
-        } catch (e) {
-          devWarn(` Unlock ${name} failed:`, e.message)
-        }
-      }
-      
-      // Now connect to processing chain (AudioProcessor should be ready by now)
-      setTimeout(() => {
-        connectToProcessingChain()
-      }, 200)
-      
-      // Start background sounds if game is running
-      if (gameStarted) {
-        try {
-          audioRefs.current.cityAmbience.volume = 0.3
-          audioRefs.current.engine.volume = 0.2
-          await audioRefs.current.cityAmbience.play()
-          await audioRefs.current.engine.play()
-        } catch (bgError) {
-          devWarn(" Background sounds failed:", bgError.message)
-        }
-      }
-      
-      alert("✅ Sound enabled! You should now hear background sounds and emergency sirens.")
-    } catch (e) {
-      devWarn(" Unlock error:", e)
-      alert("✅ Sound system activated! Sounds will play during the game.")
-    }
-  }
-
-  return (
-    <>
-      {showButton && gameStarted && (
-        <div style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          zIndex: 99999,
-          background: 'rgba(0, 0, 0, 0.98)',
-          padding: '50px 80px',
-          borderRadius: '25px',
-          border: '5px solid #f39c12',
-          boxShadow: '0 0 80px rgba(243, 156, 18, 0.8), 0 0 40px rgba(243, 156, 18, 0.5)',
-          animation: 'pulse 2s infinite'
-        }}>
-          <style>{`
-            @keyframes pulse {
-              0%, 100% { transform: translate(-50%, -50%) scale(1); }
-              50% { transform: translate(-50%, -50%) scale(1.02); }
-            }
-          `}</style>
-          <button
-            onClick={enableSound}
-            style={{
-              padding: '25px 50px',
-              fontSize: '2.5rem',
-              background: 'linear-gradient(135deg, #f39c12 0%, #e74c3c 100%)',
-              border: '3px solid white',
-              borderRadius: '15px',
-              color: 'white',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              boxShadow: '0 8px 25px rgba(0,0,0,0.5)',
-              transition: 'all 0.2s',
-              textShadow: '2px 2px 4px rgba(0,0,0,0.5)'
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.transform = 'scale(1.1)'
-              e.target.style.background = 'linear-gradient(135deg, #e67e22 0%, #c0392b 100%)'
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.transform = 'scale(1)'
-              e.target.style.background = 'linear-gradient(135deg, #f39c12 0%, #e74c3c 100%)'
-            }}
-          >
-            🔊 Tap to Start Sound 🔊
-          </button>
-          <p style={{ 
-            color: 'white', marginTop: '25px', textAlign: 'center', 
-            fontSize: '1.3rem', fontWeight: 'bold',
-            textShadow: '1px 1px 3px rgba(0,0,0,0.8)'
-          }}>
-            👁️ Visual alerts always work — sound adds more fun!
-          </p>
-          <p style={{ 
-            color: '#f39c12', marginTop: '15px', textAlign: 'center', 
-            fontSize: '1rem', fontWeight: 'bold'
-          }}>
-            Audio Status: {audioInitialized ? '✅ Ready' : '⏳ Loading...'}
-          </p>
-          <p style={{ 
-            color: '#bbb', marginTop: '10px', textAlign: 'center', 
-            fontSize: '0.85rem'
-          }}>
-            You will see and feel all emergency alerts on screen
-          </p>
-        </div>
-      )}
-    </>
-  )
+  // Removed the manual enableSound button and alerts because 
+  // the initial "Start Game" click from StartScreen unlocks the audio context naturally.
+  return null;
 }
