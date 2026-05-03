@@ -378,6 +378,9 @@ def detect_flow_state(db: Session, user_id: int, current_session_id: Optional[in
         rt_mean = np.mean(reaction_times) if len(reaction_times) > 0 else 0
         rt_cv = (np.sqrt(rt_variance) / rt_mean) if rt_mean > 0 else 999  # Coefficient of variation
     
+    # Calculate cognitive load
+    cognitive_load = calculate_cognitive_load(db, user_id, window_minutes=10)
+    
     # Flow criteria:
     # 1. Moderate success rate (60-85% = optimal challenge)
     # 2. Low CV in RT (< 0.3 = high consistency/engagement)

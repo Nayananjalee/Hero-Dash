@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 import models
 import numpy as np
+from scipy import stats as scipy_stats
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
@@ -241,7 +242,6 @@ def estimate_ability_from_db(db: Session, user_id: int) -> Dict:
         label = "Needs Support"
     
     # Rough percentile from standard normal
-    from scipy import stats as scipy_stats
     percentile = round(scipy_stats.norm.cdf(theta) * 100, 1)
     
     return {

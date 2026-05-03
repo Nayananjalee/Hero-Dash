@@ -230,7 +230,8 @@ def get_recommendation(db: Session, user_id: int):
             varied = [c for c in candidates if c != last_two[0]]
             if varied:
                 return random.choice(varied)
-        return random.choice(candidates)
+        # Fallback: if all candidates were filtered out, just pick one randomly
+        return random.choice(candidates) if candidates else None
 
     # 1. Check Spaced Repetition for due reviews
     due_scenarios = ml_algorithms.get_due_for_review(db, user_id)

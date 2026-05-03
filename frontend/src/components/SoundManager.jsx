@@ -182,54 +182,74 @@ export default function SoundManager() {
     })
 
     if (emergencyActive && gameStarted) {
+      let dopplerInterval = null // Track interval for cleanup
+      
       const playSiren = async () => {
         try {
           let soundToPlay = audioRefs.current[emergencyType] || null
           
-          if (soundToPlay) {
-            // Procedural Audio Generation & Doppler Effect Setup
-            soundToPlay.volume = 0.1 // Start quiet (far away)
-            const duration = soundToPlay.duration || 0
-            const maxOffset = Math.min(2, duration * 0.3)
-            soundToPlay.currentTime = maxOffset > 0 ? Math.random() * maxOffset : 0
-            
-            // Base procedural pitch shift (so it doesn't sound like rote memorization)
-            const baseRate = 0.95 + Math.random() * 0.10
-            soundToPlay.playbackRate = baseRate
-            
-            devLog(`🚨 Playing Procedural Siren: ${emergencyType}`)
-            await soundToPlay.play()
-
-            // Doppler Effect Simulation (Approaching then passing)
-            let timePassed = 0;
-            const dopplerInterval = setInterval(() => {
-              if (!useGameStore.getState().emergencyActive || soundToPlay.paused) {
-                clearInterval(dopplerInterval);
-                return;
-              }
-              timePassed += 100;
-              // Simulate vehicle approaching over 4 seconds, then passing
-              if (timePassed < 4000) {
-                // Approaching: volume increases, pitch is higher (Doppler blue-shift)
-                if (soundToPlay.volume < 1.0) soundToPlay.volume = Math.min(1.0, soundToPlay.volume + 0.05);
-                soundToPlay.playbackRate = baseRate + 0.05; 
-              } else if (timePassed < 6000) {
-                // Right next to player
-                soundToPlay.volume = 1.0;
-                soundToPlay.playbackRate = baseRate;
-              } else {
-                // Moving away: volume drops, pitch lowers (Doppler red-shift)
-                if (soundToPlay.volume > 0.1) soundToPlay.volume = Math.max(0.1, soundToPlay.volume - 0.05);
-                soundToPlay.playbackRate = baseRate - 0.08;
-              }
-            }, 100);
-
+          if (!soundToPlay) {
+            devWarn(` Sound not found for emergency type: ${emergencyType}`)
+            return
           }
+          
+          // Procedural Audio Generation & Doppler Effect Setup
+          soundToPlay.volume = 0.1 // Start quiet (far away)
+          const duration = soundToPlay.duration || 0
+          const maxOffset = Math.min(2, duration * 0.3)
+          soundToPlay.currentTime = maxOffset > 0 ? Math.random() * maxOffset : 0
+          
+          // Base procedural pitch shift (so it doesn't sound like rote memorization)
+          const baseRate = 0.95 + Math.random() * 0.10
+          soundToPlay.playbackRate = baseRate
+          
+          devLog(`🚨 Playing Procedural Siren: ${emergencyType}`)
+          await soundToPlay.play().catch(err => {
+            devWarn(` Failed to play ${emergencyType}:`, err.message)
+          })
+
+          // Doppler Effect Simulation (Approaching then passing)
+          let timePassed = 0;
+          dopplerInterval = setInterval(() => {
+            if (!useGameStore.getState().emergencyActive || soundToPlay.paused) {
+              clearInterval(dopplerInterval);
+              dopplerInterval = null
+              return;
+            }
+            timePassed += 100;
+            // Simulate vehicle approaching over 4 seconds, then passing
+            if (timePassed < 4000) {
+              // Approaching: volume increases, pitch is higher (Doppler blue-shift)
+              if (soundToPlay.volume < 1.0) soundToPlay.volume = Math.min(1.0, soundToPlay.volume + 0.05);
+              soundToPlay.playbackRate = baseRate + 0.05; 
+            } else if (timePassed < 6000) {
+              // Right next to player
+              soundToPlay.volume = 1.0;
+              soundToPlay.playbackRate = baseRate;
+            } else {
+              // Moving away: volume drops, pitch lowers (Doppler red-shift)
+              if (soundToPlay.volume > 0.1) soundToPlay.volume = Math.max(0.1, soundToPlay.volume - 0.05);
+              soundToPlay.playbackRate = baseRate - 0.08;
+            }
+          }, 100);
+
         } catch (e) {
-          devWarn(` SIREN PLAY FAILED for ${emergencyType}:`, e)
+          devWarn(` SIREN PLAY FAILED for ${emergencyType}:`, e?.message || e)
+          if (dopplerInterval) {
+            clearInterval(dopplerInterval)
+            dopplerInterval = null
+          }
         }
       }
       playSiren()
+      
+      // Cleanup on unmount or emergency end
+      return () => {
+        if (dopplerInterval) {
+          clearInterval(dopplerInterval)
+          dopplerInterval = null
+        }
+      }
     }
   }, [emergencyActive, emergencyType, gameStarted, soundEnabled])
 

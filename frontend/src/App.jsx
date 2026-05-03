@@ -87,11 +87,11 @@ function App() {
       devLog(`🚨 Emergency: ${data.type} - ${data.action}`)
 
       useGameStore.getState().setMLMetrics({
-        cognitive_load: data.cognitive_load,
-        in_flow_state: data.in_flow_state,
-        reason: data.reason,
-        noise_level: data.noise_level,
-        speed_modifier: data.speed_modifier
+        cognitive_load: data.cognitive_load ?? 0.0,
+        in_flow_state: data.in_flow_state ?? false,
+        reason: data.reason ?? '',
+        noise_level: data.noise_level ?? 0.2,
+        speed_modifier: data.speed_modifier ?? 1.0
       })
 
       triggerEmergency(data.type, data.action)

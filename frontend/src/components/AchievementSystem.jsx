@@ -25,7 +25,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 // ============================================================
 // TOAST NOTIFICATION (floats in from top-right)
 // ============================================================
-function AchievementToast({ achievement, onDismiss }) {
+function AchievementToast({ achievement, onDismiss, index }) {
   useEffect(() => {
     const timer = setTimeout(onDismiss, 5000)
     return () => clearTimeout(timer)
@@ -36,7 +36,7 @@ function AchievementToast({ achievement, onDismiss }) {
       initial={{ x: 300, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 300, opacity: 0 }}
       transition={{ type: 'spring', stiffness: 120 }}
       style={{
-        position: 'fixed', top: '20px', right: '20px', zIndex: 3000,
+        position: 'fixed', top: `${20 + (index * 110)}px`, right: '20px', zIndex: 3000,
         background: 'linear-gradient(135deg, #2d2d44, #1a1a2e)',
         border: '2px solid #f1c40f', borderRadius: '16px',
         padding: '16px 24px', minWidth: '300px', maxWidth: '400px',

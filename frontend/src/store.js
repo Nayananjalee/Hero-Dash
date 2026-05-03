@@ -216,6 +216,12 @@ export const useGameStore = create((set, get) => ({
           devLog('❌ WRONG LANE! Completing emergency as failure')
           state.completeEmergency(false)
         }
+      } else {
+        // Target lane is NULL, meaning changing lane is the WRONG action for this emergency!
+        // (e.g., Earthquake requires Stop, not Move Left/Right)
+        set({ responseLocked: true })
+        devLog('❌ WRONG ACTION! Changed lane when supposed to do something else.')
+        state.completeEmergency(false)
       }
     }
   },
@@ -252,6 +258,12 @@ export const useGameStore = create((set, get) => ({
           devLog('❌ WRONG SPEED! Completing emergency as failure')
           state.completeEmergency(false)
         }
+      } else {
+        // Target speed is NULL, meaning changing speed is the WRONG action for this emergency!
+        // (e.g., Tsunami requires Move Right, not Stop)
+        set({ responseLocked: true })
+        devLog('❌ WRONG ACTION! Changed speed when supposed to do something else.')
+        state.completeEmergency(false)
       }
     }
   },
@@ -394,7 +406,8 @@ export const useGameStore = create((set, get) => ({
   clearEmergency: () => {
     devLog('⏰ clearEmergency called (timeout)')
     const state = get()
-    if (state.emergencyActive) {
+    // ONLY fail the player if they haven't already locked in a response!
+    if (state.emergencyActive && !state.responseLocked) {
       if (state.emergencyType.startsWith('distractor')) {
         devLog('✅ SUCCESS: Ignored distractor sound properly (Inhibitory Control)')
         state.completeEmergency(true)
@@ -403,7 +416,7 @@ export const useGameStore = create((set, get) => ({
         state.completeEmergency(false)  // Timeout = failure
       }
     } else {
-      devLog('ℹ️ No active emergency to clear')
+      devLog('ℹ️ No active emergency to clear, or response already locked.')
     }
   },
 }))
