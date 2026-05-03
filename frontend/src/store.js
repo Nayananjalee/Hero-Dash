@@ -67,6 +67,8 @@ export const useGameStore = create((set, get) => ({
   showAssessmentMode: false,
   assessmentTypeToRun: 'baseline', // 'baseline', 'post_test', 'follow_up'
   showAchievements: false,
+  showMissionSelect: false,
+  missionComplete: false,
   
   // === Actions ===
   
@@ -109,6 +111,16 @@ export const useGameStore = create((set, get) => ({
    * Toggle achievements gallery
    */
   setShowAchievements: (show) => set({ showAchievements: show }),
+  
+  /**
+   * Toggle mission selector modal
+   */
+  setShowMissionSelect: (show) => set({ showMissionSelect: show }),
+  
+  /**
+   * Set mission completion state
+   */
+  setMissionComplete: (complete) => set({ missionComplete: complete }),
   
   /**
    * Set analytics session ID
