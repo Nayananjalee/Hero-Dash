@@ -352,53 +352,40 @@ export const useGameStore = create((set, get) => ({
         }).catch(err => devWarn("Failed to record attempt", err))
     }
 
-    // Update game state based on success/failure
-    if (success) {
-      const newScore = state.score + 100
-      const newLevel = Math.floor(newScore / 500) + 1  // Level up every 500 points
-      
-      set({ 
-        emergencyActive: false, 
-        emergencyType: null, 
-        targetLane: null,
-        targetSpeed: null,
-        emergencyStartTime: null,
-        responseLocked: false,
-        score: newScore,
-        level: newLevel,
-        speedModifier: 1,  // Reset to normal speed
-        feedback: 'Correct! 🎉'
-      })
-    } else {
-      const currentLives = state.lives - 1
-      const gameOver = currentLives <= 0
-      
-      set({ 
-        emergencyActive: false, 
-        emergencyType: null, 
-        targetLane: null,
-        targetSpeed: null,
-        emergencyStartTime: null,
-        responseLocked: false,
-        speedModifier: 1,
-        lives: currentLives,
-        isGameOver: gameOver,
-        feedback: gameOver ? null : 'Missed! ❌'
-      })
-      
-      if (gameOver) {
-        // End analytics session on game over
-        if (state.sessionId) {
-          fetch(`${API_URL}/analytics/end-session/${state.sessionId}`, {
-            method: 'POST'
-          }).catch(err => devWarn('Failed to end session', err))
-        }
-        return // Skip feedback auto-clear — game over screen takes over
-      }
-    }
+    // Update game state based on success/failure IMMEDIATELY for visual feedback
+    const newScore = success ? state.score + 100 : state.score
+    const newLevel = success ? Math.floor(newScore / 500) + 1 : state.level
+    const currentLives = success ? state.lives : state.lives - 1
+    const gameOver = currentLives <= 0
     
-    // Auto-clear feedback (longer for young readers)
-    setTimeout(() => set({ feedback: null }), TOKENS.feedbackDuration)
+    set({
+      score: newScore,
+      level: newLevel,
+      lives: currentLives,
+      isGameOver: gameOver,
+      feedback: success ? 'Correct! 🎉' : (gameOver ? null : 'Missed! ❌')
+    })
+
+    // WAIT 2 SECONDS before removing the emergency so the child can see the correct answer visuals
+    setTimeout(() => {
+      set({ 
+        emergencyActive: false, 
+        emergencyType: null, 
+        targetLane: null,
+        targetSpeed: null,
+        emergencyStartTime: null,
+        responseLocked: false,
+        speedModifier: 1,  // Reset to normal speed
+        feedback: null
+      })
+      
+      if (gameOver && state.sessionId) {
+        // End analytics session on game over
+        fetch(`${API_URL}/analytics/end-session/${state.sessionId}`, {
+          method: 'POST'
+        }).catch(err => devWarn('Failed to end session', err))
+      }
+    }, 2500)
   },
 
   /**

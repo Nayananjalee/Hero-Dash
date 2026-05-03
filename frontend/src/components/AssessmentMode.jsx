@@ -252,6 +252,7 @@ export default function AssessmentMode({ userId, assessmentType = 'baseline', on
   const [lastFeedback, setLastFeedback] = useState(null)
   const [results, setResults] = useState(null)
   const [timeLeft, setTimeLeft] = useState(8)
+  const [errorMsg, setErrorMsg] = useState(null)
 
   // Use refs for values accessed inside timers to avoid stale closures
   const timerRef = useRef(null)
@@ -262,6 +263,12 @@ export default function AssessmentMode({ userId, assessmentType = 'baseline', on
   const trialsRef = useRef([])
   const assessmentIdRef = useRef(null)
   const respondedRef = useRef(false) // guard against double-fire
+
+  useEffect(() => {
+    if (!userId || userId === 'undefined' || userId === 'null') {
+      setErrorMsg("No user ID found. Please go back and ensure you are registered.")
+    }
+  }, [userId])
 
   // Keep refs in sync with state
   useEffect(() => { indexRef.current = currentTrialIndex }, [currentTrialIndex])
@@ -432,9 +439,21 @@ export default function AssessmentMode({ userId, assessmentType = 'baseline', on
       zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center',
       color: 'white', fontFamily: 'Arial, sans-serif'
     }}>
-      <AnimatePresence mode="wait">
-        {/* INTRO - Instructions */}
-        {state === STATES.INTRO && (
+      {errorMsg && (
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '20px' }}>⚠️</div>
+          <h2>Cannot Load Assessment</h2>
+          <p style={{ color: '#aaa', marginBottom: '30px' }}>{errorMsg}</p>
+          <button onClick={onComplete} className="kid-btn" style={{
+            padding: '12px 30px', background: '#e74c3c', border: 'none',
+            borderRadius: '10px', color: 'white', fontWeight: 'bold', cursor: 'pointer'
+          }}>← Back to Start</button>
+        </div>
+      )}
+      {!errorMsg && (
+        <AnimatePresence mode="wait">
+          {/* INTRO - Instructions */}
+          {state === STATES.INTRO && (
           <motion.div key="intro" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             style={{ maxWidth: '600px', textAlign: 'center', padding: '30px' }}
           >
@@ -520,10 +539,11 @@ export default function AssessmentMode({ userId, assessmentType = 'baseline', on
             <ResultsSummary results={results} onClose={onComplete} />
           </motion.div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>
+      )}
 
       {/* Progress bar at bottom */}
-      {(state === STATES.TRIAL || state === STATES.FEEDBACK) && (
+      {!errorMsg && (state === STATES.TRIAL || state === STATES.FEEDBACK) && (
         <div style={{
           position: 'fixed', bottom: 0, left: 0, width: '100%', height: '4px',
           background: 'rgba(255,255,255,0.1)'

@@ -412,7 +412,11 @@ export default function TherapistDashboard({ userId, onBack }) {
   const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
-    if (!userId) return
+    if (!userId || userId === 'undefined' || userId === 'null') {
+      setErrorMsg("Invalid user ID provided. Please go back and ensure your session is active.")
+      setLoading(false)
+      return
+    }
     fetchAllData()
   }, [userId])
 
@@ -441,9 +445,29 @@ export default function TherapistDashboard({ userId, onBack }) {
       }
     } catch (err) {
       console.error('Failed to fetch therapist dashboard:', err)
+      setErrorMsg("Failed to load dashboard data. Please try again.")
     } finally {
       setLoading(false)
     }
+  }
+
+  // Render Logic
+  if (errorMsg) {
+    return (
+      <div style={{
+        position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+        background: '#1a1a2e', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', zIndex: 1000, color: 'white'
+      }}>
+        <div style={{ fontSize: '3rem', marginBottom: '20px' }}>⚠️</div>
+        <h2 style={{ marginBottom: '10px' }}>Cannot Load Dashboard</h2>
+        <p style={{ color: '#aaa', marginBottom: '30px' }}>{errorMsg}</p>
+        <button onClick={onBack} style={{
+          padding: '12px 30px', background: '#e74c3c', border: 'none',
+          borderRadius: '10px', color: 'white', fontWeight: 'bold', cursor: 'pointer'
+        }}>← Back to Start</button>
+      </div>
+    )
   }
 
   const handleExport = async () => {
@@ -788,6 +812,19 @@ export default function TherapistDashboard({ userId, onBack }) {
           onSave={() => setShowAudiogram(false)} 
           onCancel={() => setShowAudiogram(false)} 
         />
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div style={{
+        position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+        background: '#1a1a2e', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', zIndex: 1000, color: 'white'
+      }}>
+        <div style={{ fontSize: '3rem', animation: 'pulse 1s infinite' }}>⏳</div>
+        <h2>Loading Clinical Data...</h2>
       </div>
     )
   }
