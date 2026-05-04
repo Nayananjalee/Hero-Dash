@@ -878,7 +878,7 @@ export default function TherapistDashboard({ userId, onBack }) {
         <TabButton active={activeTab === 'memory'} label="Memory" icon="🔄" onClick={() => setActiveTab('memory')} />
         <TabButton active={activeTab === 'plan'} label="Training Plan" icon="📅" onClick={() => setActiveTab('plan')} />
         <TabButton active={activeTab === 'achievements'} label="Achievements" icon="🏆" onClick={() => setActiveTab('achievements')} />
-        <TabButton active={activeTab === 'clinical'} label="Clinical" icon="📝" onClick={() => setActiveTab('clinical')} />
+        {/* <TabButton active={activeTab === 'clinical'} label="Clinical" icon="📝" onClick={() => setActiveTab('clinical')} /> */}
       </div>
 
       {/* Content */}
@@ -969,7 +969,7 @@ export default function TherapistDashboard({ userId, onBack }) {
                 <AchievementsGrid achievements={achievements} />
               )}
 
-              {/* CLINICAL TAB */}
+              {/* CLINICAL TAB - HIDDEN
               {activeTab === 'clinical' && dashboardData && (
                 <>
                   {/* Age-Normalized Scores */}
@@ -1019,6 +1019,7 @@ export default function TherapistDashboard({ userId, onBack }) {
                   <SOAPNote soap={dashboardData.soap_note} />
                 </>
               )}
+              */}
             </motion.div>
           </AnimatePresence>
         )}
