@@ -17,7 +17,6 @@ import StartScreen from './components/StartScreen'
 import AnalyticsDashboard from './components/AnalyticsDashboard'
 import GameHUD from './components/GameHUD'
 import AssessmentMode from './components/AssessmentMode'
-import AchievementSystem from './components/AchievementSystem'
 import TherapistDashboard from './components/TherapistDashboard'
 import { useGameStore } from './store'
 import { API_URL, devLog, devWarn } from './config'
@@ -31,7 +30,6 @@ function App() {
   const showTherapistDashboard = useGameStore((state) => state.showTherapistDashboard)
   const showAssessmentMode = useGameStore((state) => state.showAssessmentMode)
   const assessmentTypeToRun = useGameStore((state) => state.assessmentTypeToRun)
-  const showAchievements = useGameStore((state) => state.showAchievements)
   const isGameOver = useGameStore((state) => state.isGameOver)
   const clearTimeoutId = useRef(null) // Store timeout ID for clearing
   const emergencyRemainingMs = useRef(null) // Track remaining ms when paused
@@ -206,15 +204,6 @@ function App() {
       
       {/* GameHUD - Real-time ML feedback during gameplay */}
       {gameStarted && userId && <GameHUD userId={userId} />}
-      
-      {/* Achievement System - Toast notifications + gallery */}
-      {userId && (
-        <AchievementSystem 
-          userId={userId}
-          show={showAchievements}
-          onClose={() => useGameStore.getState().setShowAchievements(false)}
-        />
-      )}
       
       {/* Therapist Dashboard - Full clinical view */}
       {showTherapistDashboard && userId && (

@@ -518,10 +518,8 @@ export default function StartScreen() {
             flex: '2 1 400px', display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', alignItems: 'center'
           }}>
             {[
-              { label: '📋 Missions', action: () => registerAndDo(() => useGameStore.getState().setShowMissionSelect(true)), bg: '#e74c3c' },
               { label: '🩺 Therapist', action: () => registerAndDo(() => useGameStore.getState().setShowTherapistDashboard(true)), bg: '#9b59b6' },
-              { label: '📊 Dashboard', action: handleDashboard, bg: '#3498db' },
-              { label: '🏆 Awards', action: () => registerAndDo(() => useGameStore.getState().setShowAchievements(true)), bg: '#f39c12' }
+              { label: '📊 Dashboard', action: handleDashboard, bg: '#3498db' }
             ].map((btn, i) => (
               <button key={i} className="kid-btn" onClick={btn.action} disabled={loading} style={{
                 padding: '10px 16px', fontSize: '0.9rem', fontWeight: 800,
